@@ -2,7 +2,7 @@ plugins {
     id 'java'
 }
 
-group = 'dev.ribica.floxycraft'
+group = 'dev.ribica.floxyoneblock'
 version = '1.0-SNAPSHOT'
 
 repositories {
