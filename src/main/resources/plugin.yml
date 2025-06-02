@@ -1,0 +1,4 @@
+main: dev.ribica.floxyoneblock.OneBlockPlugin
+version: 1.0.0
+api-version: 1.21
+name: oneblock
