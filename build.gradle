@@ -1,19 +1,73 @@
+import io.papermc.paperweight.userdev.ReobfArtifactConfiguration
+
 plugins {
     id 'java'
+    id "io.papermc.paperweight.userdev" version "2.0.0-beta.17"
+    id "io.freefair.lombok"  version "8.13.1"
+    id "com.gradleup.shadow" version "9.0.0-beta15"
 }
 
-group = 'dev.ribica.floxyoneblock'
+group = 'dev.ribica.oneblockplugin'
 version = '1.0-SNAPSHOT'
+sourceCompatibility = targetCompatibility = JavaVersion.VERSION_21
 
 repositories {
     mavenCentral()
+    maven { url = "https://repo.papermc.io/repository/maven-public/" }
+    maven { url = "https://maven.enginehub.org/repo/" }
+    maven { url = "https://repo.aikar.co/content/groups/aikar/" }
+}
+
+compileJava {
+    options.compilerArgs += ["-parameters"]
+    options.fork = true
+//    options.forkOptions.executable = System.getProperty("java.home") + "/bin/javac"
 }
 
 dependencies {
-    testImplementation platform('org.junit:junit-bom:5.10.0')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
+    // either of these work? what's the difference?
+    paperweight.paperDevBundle("1.21.5-R0.1-SNAPSHOT")
+//    paperweightDevelopmentBundle "io.papermc.paper:dev-bundle:1.21.5-R0.1-SNAPSHOT"
+
+    implementation(platform("org.mongodb:mongodb-driver-bom:5.5.1"))
+    implementation "org.mongodb:mongodb-driver-sync"
+    implementation "com.github.luben:zstd-jni:1.5.7-3"
+    implementation 'com.github.stefvanschie.inventoryframework:IF:0.11.0'
+    implementation "co.aikar:acf-paper:0.5.1-SNAPSHOT"
+    implementation(platform("com.intellectualsites.bom:bom-newest:1.52")) // Ref: https://github.com/IntellectualSites/bom
+    compileOnly("com.fastasyncworldedit:FastAsyncWorldEdit-Core")
+    compileOnly("com.fastasyncworldedit:FastAsyncWorldEdit-Bukkit") { transitive = false }  // isTransitive for kotlin dsl
+    compileOnly 'com.sk89q.worldguard:worldguard-bukkit:7.0.15-SNAPSHOT'
 }
 
-test {
-    useJUnitPlatform()
+// Include the mongodb driver code in our plugin becuase it's not provided by the server
+shadowJar {
+    archiveClassifier.set('')  // remove the '-all' suffix
+    minimize()
+    relocate 'com.mongodb',             'dev.ribica.libs.mongodb'
+    relocate 'org.bson',                'dev.ribica.libs.bson'
+    relocate 'co.aikar.commands',       'dev.ribica.libs.acf'
+    relocate 'co.aikar.locales',        'dev.ribica.libs.acf-locales'
+    relocate 'com.github.stefvanschie.inventoryframework', 'dev.ribica.libs.IF'
+//  DO NOT RELOCATE ZSTD-JNI !   relocate 'com.github.luben.zstd',   'dev.ribica.libs.zstdjni'
 }
+
+tasks {
+    assemble {
+        dependsOn shadowJar
+    }
+}
+
+
+
+// When we build the jar, move it directly into the plugins folder
+build.doLast {
+    def jarFile = file("$buildDir/libs/${rootProject.name}-${version}.jar")
+    def outputDir = file("C:/FloxyOneBlock/plugins")
+    if (!outputDir.exists()) { outputDir.mkdirs()}
+    copy {from jarFile into outputDir }
+}
+
+
+//paperweight.reobfArtifactConfiguration = io.papermc.paperweight.userdev.ReobfArtifactConfigurationMOJANG_PRODUCTION
+//paperweight.reobfArtifactConfiguration = ReobfArtifactConfiguration.getMOJANG_PRODUCTION()

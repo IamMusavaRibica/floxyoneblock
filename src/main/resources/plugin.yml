@@ -1,4 +1,8 @@
-main: dev.ribica.floxyoneblock.OneBlockPlugin
+main: dev.ribica.oneblockplugin.OneBlockPlugin
 version: 1.0.0
 api-version: 1.21
-name: oneblock
+name: OneBlockPlugin
+author: musava_ribica
+
+depend: [WorldEdit, WorldGuard]
+#loadbefore: [VoidWorldGenerator, WorldEditSUI]
