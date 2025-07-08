@@ -45,10 +45,10 @@ public class MongoStorageProvider {
     private final Logger logger;
     private final UserManager userManager;
 
-    private MongoClient mongoClient;
-    private MongoDatabase database;
-    private MongoCollection<Document> playersCollection;
-    private MongoCollection<Document> profilesCollection;
+    private final MongoClient mongoClient;
+    private final MongoDatabase database;
+    private final MongoCollection<Document> playersCollection;
+    private final MongoCollection<Document> profilesCollection;
     private BukkitTask autoSaveTask;
 
 
