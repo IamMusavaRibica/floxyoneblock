@@ -56,7 +56,6 @@ public class Island {
     }
 
     public void removeMember(@NonNull UUID memberUuid) {
-        // no removing, just set permissions to 0
         if (memberUuid.equals(owner.getId().getUuid())) {
             throw new IllegalArgumentException("Cannot remove the owner from the island");
         }
@@ -64,6 +63,7 @@ public class Island {
         if (member == null) {
             throw new IllegalArgumentException("Member with UUID " + memberUuid + " (name: " + UUIDNamePair.of(memberUuid).getName() + ") is not part of this island");
         }
+        // no removing, just set permissions to 0
         member.setPermissions(0);
         plugin.getStorageProvider().removeMemberFromUserDataProfiles(member.getId(), this.uuid);
     }
