@@ -26,7 +26,7 @@ compileJava {
 
 dependencies {
     // either of these work? what's the difference?
-    paperweight.paperDevBundle("1.21.5-R0.1-SNAPSHOT")
+    paperweight.paperDevBundle("1.21.7-R0.1-SNAPSHOT")
 //    paperweightDevelopmentBundle "io.papermc.paper:dev-bundle:1.21.5-R0.1-SNAPSHOT"
 
     implementation(platform("org.mongodb:mongodb-driver-bom:5.5.1"))
