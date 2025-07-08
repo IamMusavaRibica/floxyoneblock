@@ -70,6 +70,7 @@ public class IslandRegionManager {
         try {
             String regionId = "island_" + StringUtils.UUIDtoString(island.getUuid());
             String spawnRegionId = regionId + "_spawn";
+            String sourceRegionId = regionId + "_source";
 
             if (regions.hasRegion(regionId)) {
                 plugin.getLogger().warning("WorldGuard region " + regionId + " already exists, updating it");
@@ -78,6 +79,10 @@ public class IslandRegionManager {
             if (regions.hasRegion(spawnRegionId)) {
                 plugin.getLogger().warning("WorldGuard region " + spawnRegionId + " already exists, updating it");
                 regions.removeRegion(spawnRegionId);
+            }
+            if (regions.hasRegion(sourceRegionId)) {
+                plugin.getLogger().warning("WorldGuard region " + sourceRegionId + " already exists, updating it");
+                regions.removeRegion(sourceRegionId);
             }
 
             com.sk89q.worldedit.regions.CuboidRegion boundary = island.getBoundary();
@@ -98,6 +103,22 @@ public class IslandRegionManager {
             spawnRegion.setFlag(Flags.BUILD, StateFlag.State.DENY);
             spawnRegion.setFlag(Flags.BUILD.getRegionGroupFlag(), RegionGroup.ALL);
             regions.addRegion(spawnRegion);
+
+            // Add the source block protection region (just the one block source)
+            BlockVector3 sourceBlock = BlockVector3.at(origin.getBlockX(), origin.getBlockY(), origin.getBlockZ());
+            ProtectedCuboidRegion sourceRegion = new ProtectedCuboidRegion(sourceRegionId, true, sourceBlock, sourceBlock);
+            // Set priority higher than both main and spawn regions
+            sourceRegion.setPriority(region.getPriority() + 20);
+
+            // Explicitly allow building/breaking for owners and members
+            sourceRegion.setFlag(Flags.BUILD, StateFlag.State.ALLOW);
+            sourceRegion.setFlag(Flags.BUILD.getRegionGroupFlag(), RegionGroup.MEMBERS);
+
+            // Only block pistons for everyone (including owners)
+            sourceRegion.setFlag(Flags.PISTONS, StateFlag.State.DENY);
+            sourceRegion.setFlag(Flags.PISTONS.getRegionGroupFlag(), RegionGroup.ALL);
+
+            regions.addRegion(sourceRegion);
 
             regions.save();
         } catch (Exception e) {
@@ -198,6 +219,7 @@ public class IslandRegionManager {
     public void unregisterRegion(Island island) {
         String regionId = "island_" + StringUtils.UUIDtoString(island.getUuid());
         String spawnRegionId = regionId + "_spawn";
+        String sourceRegionId = regionId + "_source";
 //        plugin.getLogger().info("Unregistering region " + regionId);
         if (regions.hasRegion(regionId))
             regions.removeRegion(regionId);
@@ -205,5 +227,7 @@ public class IslandRegionManager {
             plugin.getLogger().warning("Tried to unregister non-existing region " + regionId + " for island " + island.getUuid());
         if (regions.hasRegion(spawnRegionId))
             regions.removeRegion(spawnRegionId);
+        if (regions.hasRegion(sourceRegionId))
+            regions.removeRegion(sourceRegionId);
     }
 }
