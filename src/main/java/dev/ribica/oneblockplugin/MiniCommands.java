@@ -26,6 +26,11 @@ import static java.time.Duration.ofSeconds;
 public class MiniCommands extends BaseCommand {
     private final OneBlockPlugin plugin;
 
+    @CommandAlias("testopendialog")
+    public void t(Player player) {
+
+    }
+
     @CommandAlias("halt")
     @CommandPermission("op")
     public void halt(CommandSender sender) {
