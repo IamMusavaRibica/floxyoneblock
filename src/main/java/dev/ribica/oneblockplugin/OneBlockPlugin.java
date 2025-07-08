@@ -37,10 +37,8 @@ public class OneBlockPlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        saveDefaultConfig(); // Ensure config is loaded and defaults are written
         instance = this;
         logger = getLogger();
-
 
         getServer().getScheduler().runTaskTimer(this, () -> currentTick++, 0L, 1L);
         registerAikarCommands();
