@@ -13,41 +13,47 @@ import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
 import dev.ribica.oneblockplugin.OneBlockPlugin;
 import dev.ribica.oneblockplugin.util.StringUtils;
-import lombok.RequiredArgsConstructor;
 import org.bukkit.Location;
 import org.bukkit.World;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.logging.Level;
 
 /**
  * Manages WorldGuard regions for islands
+ * Now works per-world since each island has its own world
  * Uses a simple permission model: owners/members have full permissions, guests have none
  */
 public class IslandRegionManager {
     private final OneBlockPlugin plugin;
-    private final World islandsWorld;
+    private final World legacyWorld; // Keep for legacy operations only
     private final RegionContainer container;
-    private final RegionManager regions;
 
-    public IslandRegionManager(OneBlockPlugin plugin, World world) {
+    public IslandRegionManager(OneBlockPlugin plugin, World legacyWorld) {
         this.plugin = plugin;
-        this.islandsWorld = world;
+        this.legacyWorld = legacyWorld;
         this.container = WorldGuard.getInstance().getPlatform().getRegionContainer();
-        this.regions = container.get(BukkitAdapter.adapt(islandsWorld));
-        if (this.regions == null) {
-            throw new IllegalStateException("Couldn't get WorldGuard region manager");
-        }
     }
 
     /**
-     * Clears all existing island regions on server startup
+     * Get region manager for a specific world
+     */
+    private RegionManager getRegionManager(World world) {
+        RegionManager regionManager = container.get(BukkitAdapter.adapt(world));
+        if (regionManager == null) {
+            throw new IllegalStateException("Couldn't get WorldGuard region manager for world: " + world.getName());
+        }
+        return regionManager;
+    }
+
+    /**
+     * Clears all existing island regions on server startup (legacy main world only)
      * This prevents orphaned regions from persisting after server crashes or similar situations
      */
     public void clearAllIslandRegions() {
         try {
+            RegionManager regions = getRegionManager(legacyWorld);
             // Find and remove all island regions (ids starting with "island_")
             List<String> regionsToRemove = new ArrayList<>();
             regions.getRegions().keySet().forEach(region -> {
@@ -56,22 +62,30 @@ public class IslandRegionManager {
             });
             regionsToRemove.forEach(regions::removeRegion);
             if (!regionsToRemove.isEmpty())
-                plugin.getLogger().warning("Cleared " + regionsToRemove.size() + " leftover island regions");
+                plugin.getLogger().warning("Cleared " + regionsToRemove.size() + " leftover island regions from legacy world");
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error clearing island regions on startup", e);
         }
     }
 
     /**
-     * Register a WorldGuard region for the specified island
+     * Register a WorldGuard region for the specified island in its own world
      * @param island The island to create a region for
      */
     public void registerRegion(Island island) {
+        World islandWorld = plugin.getIslandAllocator2().getIslandWorld(island);
+        if (islandWorld == null) {
+            plugin.getLogger().warning("Cannot register region for island " + island.getUuid() + " - world not found");
+            return;
+        }
+
         try {
+            RegionManager regions = getRegionManager(islandWorld);
             String regionId = "island_" + StringUtils.UUIDtoString(island.getUuid());
             String spawnRegionId = regionId + "_spawn";
-//            String sourceRegionId = regionId + "_source";
+            String sourceRegionId = regionId + "_source";
 
+            // Remove existing regions if they exist
             if (regions.hasRegion(regionId)) {
                 plugin.getLogger().warning("WorldGuard region " + regionId + " already exists, updating it");
                 regions.removeRegion(regionId);
@@ -80,11 +94,12 @@ public class IslandRegionManager {
                 plugin.getLogger().warning("WorldGuard region " + spawnRegionId + " already exists, updating it");
                 regions.removeRegion(spawnRegionId);
             }
-//            if (regions.hasRegion(sourceRegionId)) {
-//                plugin.getLogger().warning("WorldGuard region " + sourceRegionId + " already exists, updating it");
-//                regions.removeRegion(sourceRegionId);
-//            }
+            if (regions.hasRegion(sourceRegionId)) {
+                plugin.getLogger().warning("WorldGuard region " + sourceRegionId + " already exists, updating it");
+                regions.removeRegion(sourceRegionId);
+            }
 
+            // Create main island region
             com.sk89q.worldedit.regions.CuboidRegion boundary = island.getBoundary();
             BlockVector3 min = boundary.getMinimumPoint();
             BlockVector3 max = boundary.getMaximumPoint();
@@ -104,26 +119,24 @@ public class IslandRegionManager {
             spawnRegion.setFlag(Flags.BUILD.getRegionGroupFlag(), RegionGroup.ALL);
             regions.addRegion(spawnRegion);
 
-
-            /*
             // Add the source block protection region (just the one block source)
             BlockVector3 sourceBlock = BlockVector3.at(origin.getBlockX(), origin.getBlockY(), origin.getBlockZ());
             ProtectedCuboidRegion sourceRegion = new ProtectedCuboidRegion(sourceRegionId, true, sourceBlock, sourceBlock);
-            // Set priority higher than both main and spawn regions
+
+            // set higher priority
             sourceRegion.setPriority(region.getPriority() + 20);
 
-            // Explicitly allow building/breaking for owners and members
+            // prevent gravity blocks from falling, but allow breaking
+            sourceRegion.setFlag(Flags.BUILD, StateFlag.State.DENY);
+            sourceRegion.setFlag(Flags.BUILD.getRegionGroupFlag(), RegionGroup.ALL);
             sourceRegion.setFlag(Flags.BLOCK_BREAK, StateFlag.State.ALLOW);
             sourceRegion.setFlag(Flags.BLOCK_BREAK.getRegionGroupFlag(), RegionGroup.MEMBERS);
-
-            // Only block pistons for everyone (including owners)
-            sourceRegion.setFlag(Flags.PISTONS, StateFlag.State.DENY);
-            sourceRegion.setFlag(Flags.PISTONS.getRegionGroupFlag(), RegionGroup.ALL);
+            sourceRegion.setFlag(Flags.CORAL_FADE, StateFlag.State.DENY);
 
             regions.addRegion(sourceRegion);
-             */
 
             regions.save();
+            plugin.getLogger().info("Registered WorldGuard regions for island " + island.getUuid() + " in world " + islandWorld.getName());
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to register region for island " + island.getUuid(), e);
         }
@@ -134,26 +147,31 @@ public class IslandRegionManager {
      * @param island The island to update permissions for
      */
     public void updateMemberPermissions(Island island) {
+        World islandWorld = plugin.getIslandAllocator2().getIslandWorld(island);
+        if (islandWorld == null) {
+            plugin.getLogger().warning("Cannot update member permissions for island " + island.getUuid() + " - world not found");
+            return;
+        }
+
         try {
-            Location origin = island.getOrigin();
-            if (origin == null || origin.getWorld() == null) {
-                plugin.getLogger().warning("Failed to update member permissions: Island origin or world is null");
+            RegionManager regions = getRegionManager(islandWorld);
+            String regionId = "island_" + StringUtils.UUIDtoString(island.getUuid());
+            String spawnRegionId = regionId + "_spawn";
+
+            ProtectedRegion region = regions.getRegion(regionId);
+            ProtectedRegion spawnRegion = regions.getRegion(spawnRegionId);
+
+            if (region == null) {
+                plugin.getLogger().warning("Failed to update member permissions: Region " + regionId + " not found in world " + islandWorld.getName());
                 return;
             }
 
-            String regionId = "island_" + island.getUuid().toString().replace("-", "");
-            String spawnRegionId = regionId + "_spawn";
-            ProtectedRegion region = regions.getRegion(regionId);
-            ProtectedRegion spawnRegion = regions.getRegion(spawnRegionId);
-            if (region == null) {
-                plugin.getLogger().warning("Failed to update member permissions: Region " + regionId + " not found");
-                return;
-            }
             configureRegion(region, island);
             // No need to update spawnRegion flags, as it always denies build for all
             regions.save();
-            plugin.getLogger().info("Updated permissions for island " + island.getUuid() + " - Members: " +
-                (region.getMembers().size() + region.getOwners().size()));
+
+            plugin.getLogger().info("Updated permissions for island " + island.getUuid() + " in world " + islandWorld.getName() +
+                " - Members: " + (region.getMembers().size() + region.getOwners().size()));
 
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to update member permissions for island " + island.getUuid(), e);
@@ -173,7 +191,7 @@ public class IslandRegionManager {
 
         // Set up members domain (all island members)
         DefaultDomain members = new DefaultDomain();
-        island.getMembers().forEach(im -> members.addPlayer(im.getId().getUuid()));
+        island.getCurrentMembers().forEach(im -> members.addPlayer(im.getId().getUuid()));
         region.setMembers(members);
 
         // Set default flags for non-members (guests)
@@ -181,17 +199,6 @@ public class IslandRegionManager {
         // Allow entry/exit for everyone
         region.setFlag(Flags.ENTRY, StateFlag.State.ALLOW);
         region.setFlag(Flags.EXIT, StateFlag.State.ALLOW);
-
-        // Block building/interacting for non-members
-//        region.setFlag(Flags.BUILD, StateFlag.State.DENY);
-//        region.setFlag(Flags.BUILD.getRegionGroupFlag(), RegionGroup.NON_MEMBERS);
-
-//        region.setFlag(Flags.INTERACT, StateFlag.State.DENY);
-//        region.setFlag(Flags.INTERACT.getRegionGroupFlag(), RegionGroup.NON_MEMBERS);
-
-        // Block chest access for non-members
-//        region.setFlag(Flags.CHEST_ACCESS, StateFlag.State.DENY);
-//        region.setFlag(Flags.CHEST_ACCESS.getRegionGroupFlag(), RegionGroup.NON_MEMBERS);
 
         // Block item pick-up for non-members
         region.setFlag(Flags.ITEM_PICKUP, StateFlag.State.DENY);
@@ -204,9 +211,6 @@ public class IslandRegionManager {
         region.setFlag(Flags.FALL_DAMAGE, StateFlag.State.DENY);
         region.setFlag(Flags.FALL_DAMAGE.getRegionGroupFlag(), RegionGroup.NON_MEMBERS);
 
-//        region.setFlag(Flags.MOB_DAMAGE, StateFlag.State.DENY);
-//        region.setFlag(Flags.MOB_DAMAGE.getRegionGroupFlag(), RegionGroup.NON_MEMBERS);
-
         region.setFlag(Flags.CREEPER_EXPLOSION, StateFlag.State.DENY);
         region.setFlag(Flags.OTHER_EXPLOSION, StateFlag.State.DENY);
         region.setFlag(Flags.ENDER_BUILD, StateFlag.State.DENY);
@@ -216,21 +220,38 @@ public class IslandRegionManager {
     }
 
     /**
-     * Unregister a WorldGuard region for the specified island
+     * Unregister a WorldGuard region for the specified island from its own world
      * @param island The island to remove the region for
      */
     public void unregisterRegion(Island island) {
-        String regionId = "island_" + StringUtils.UUIDtoString(island.getUuid());
-        String spawnRegionId = regionId + "_spawn";
-//        String sourceRegionId = regionId + "_source";
-//        plugin.getLogger().info("Unregistering region " + regionId);
-        if (regions.hasRegion(regionId))
-            regions.removeRegion(regionId);
-        else
-            plugin.getLogger().warning("Tried to unregister non-existing region " + regionId + " for island " + island.getUuid());
-        if (regions.hasRegion(spawnRegionId))
-            regions.removeRegion(spawnRegionId);
-//        if (regions.hasRegion(sourceRegionId))
-//            regions.removeRegion(sourceRegionId);
+        World islandWorld = plugin.getIslandAllocator2().getIslandWorld(island);
+        if (islandWorld == null) {
+            plugin.getLogger().warning("Cannot unregister region for island " + island.getUuid() + " - world not found");
+            return;
+        }
+
+        try {
+            RegionManager regions = getRegionManager(islandWorld);
+            String regionId = "island_" + StringUtils.UUIDtoString(island.getUuid());
+            String spawnRegionId = regionId + "_spawn";
+            String sourceRegionId = regionId + "_source";
+
+            plugin.getLogger().info("Unregistering regions for island " + island.getUuid() + " from world " + islandWorld.getName());
+
+            if (regions.hasRegion(regionId))
+                regions.removeRegion(regionId);
+            else
+                plugin.getLogger().warning("Tried to unregister non-existing region " + regionId + " for island " + island.getUuid());
+
+            if (regions.hasRegion(spawnRegionId))
+                regions.removeRegion(spawnRegionId);
+
+            if (regions.hasRegion(sourceRegionId))
+                regions.removeRegion(sourceRegionId);
+
+            regions.save();
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to unregister region for island " + island.getUuid(), e);
+        }
     }
 }

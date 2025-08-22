@@ -7,6 +7,7 @@ import io.papermc.paper.math.Rotation;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -72,9 +73,7 @@ public class PlayerJoinQuitListener implements Listener {
             assert user.getPlayer() == null;
 
             // Verify that the user was added to the UserManager
-            if (!plugin.getUserManager().hasUser(uuid)) {
-                throw new IllegalStateException("User was not added to UserManager");
-            }
+            plugin.getUserManager().addUser(user);
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Failed to load player data for uuid=" + uuid, e);
             event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, Component.text(
@@ -96,6 +95,8 @@ public class PlayerJoinQuitListener implements Listener {
         User user = plugin.getUser(player);
         user.setPlayer(player);
         user.updateStats();
+        user.resumeQuests();
+        user.updateQuests();
     }
 
     @EventHandler
@@ -108,6 +109,8 @@ public class PlayerJoinQuitListener implements Listener {
             return;
         }
         User user = plugin.getUser(player);
+        user.clearTemporaryEffects();
+        player.setGameMode(GameMode.SURVIVAL);          // TODO!
 
         plugin.runTaskAsync(() -> {
             try {
@@ -118,6 +121,11 @@ public class PlayerJoinQuitListener implements Listener {
             user.getActiveIsland().unloadIfSafe();
             plugin.getUserManager().removeUser(player.getUniqueId());
         });
+
+        // tick the island allocator to unload empty worlds
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            plugin.getIslandAllocator2().checkAndUnloadEmptyWorlds();
+        }, 20L);
     }
 
     @EventHandler
@@ -137,3 +145,5 @@ public class PlayerJoinQuitListener implements Listener {
         event.setRespawnLocation(target);
     }
 }
+
+

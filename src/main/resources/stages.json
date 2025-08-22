@@ -1,0 +1,109 @@
+{
+  "stages": [
+    {
+      "id": 0,
+      "name": "Tutorijal",
+      "icon": "TEST_BLOCK",
+      "blocks": {
+        "GRASS_BLOCK": 8,
+        "DIRT": 5,
+        "OAK_LOG": 3,
+        "OAK_LEAVES": 3,
+        "BUBBLE_CORAL_BLOCK": 5,
+        "SAND": 5,
+        "GRAVEL": 5,
+        "YELLOW_CONCRETE_POWDER": 5,
+        "CACTUS": 5
+      },
+      "mobs": {}
+    },
+    {
+      "id": 1,
+      "name": "Livada",
+      "icon": "GRASS_BLOCK",
+      "blocks": {
+        "GRASS_BLOCK": 10,
+        "DIRT": 10,
+        "COARSE_DIRT": 10,
+        "DIRT_PATH": 10,
+        "OAK_LOG": 5,
+        "OAK_LEAVES": 5,
+        "BIRCH_LOG": 5,
+        "BIRCH_LEAVES": 5,
+        "STONE": 5,
+        "INFESTED_STONE": 5,
+        "COBBLESTONE": 5,
+        "INFESTED_COBBLESTONE": 5,
+        "ANDESITE": 5,
+        "GRANITE": 5,
+        "DIORITE": 5,
+        "GRAVEL": 5,
+        "CLAY": 5,
+        "COAL_ORE": 5,
+        "SAND": 5
+      },
+      "mobs": {
+        "PIG": 8,
+        "CHICKEN": 6,
+        "COW": 8,
+        "SHEEP": 8,
+        "WOLF": 3,
+        "RABBIT": 3
+      }
+    },
+    {
+      "id": 2,
+      "name": "Šuma",
+      "icon": "SPRUCE_LOG",
+      "blocks": {
+        "GRASS_BLOCK": 10,
+        "DIRT": 10,
+        "COARSE_DIRT": 10,
+        "ROOTED_DIRT": 10,
+        "PODZOL": 10,
+        "SPRUCE_LOG": 5,
+        "SPRUCE_LEAVES": 5,
+        "OAK_LOG": 5,
+        "OAK_LEAVES": 5,
+        "STONE": 5,
+        "INFESTED_STONE": 5,
+        "COBBLESTONE": 5,
+        "INFESTED_COBBLESTONE": 5,
+        "ANDESITE": 5,
+        "GRANITE": 5,
+        "DIORITE": 5,
+        "MOSSY_COBBLESTONE": 5,
+        "COAL_ORE": 5,
+        "COPPER_ORE": 5
+      },
+      "mobs": {
+        "ZOMBIE": 5,
+        "SKELETON": 5,
+        "VILLAGER": 5,
+        "WOLF": 5
+      }
+    },
+    {
+      "id": 3,
+      "name": "Pećina",
+      "icon": "STONE",
+      "blocks": {
+        "STONE": 10,
+        "COBBLESTONE": 10,
+        "ANDESITE": 10,
+        "GRANITE": 10,
+        "DIORITE": 10,
+        "TUFF": 10,
+        "DRIPSTONE_BLOCK": 10,
+        "GRAVEL": 10,
+        "CLAY": 10,
+        "SAND": 10,
+        "COAL_ORE": 5,
+        "COPPER_ORE": 5,
+        "IRON_ORE": 4,
+        "LAPIS_ORE": 4,
+        "COBWEB": 4
+      }
+    }
+  ]
+}

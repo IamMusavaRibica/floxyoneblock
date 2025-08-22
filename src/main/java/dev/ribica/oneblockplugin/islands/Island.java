@@ -4,7 +4,7 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
 import dev.ribica.oneblockplugin.OneBlockPlugin;
-import dev.ribica.oneblockplugin.oneblock.Stage;
+import dev.ribica.oneblockplugin.oneblock.StageManager;
 import dev.ribica.oneblockplugin.playerdata.Islands;
 import dev.ribica.oneblockplugin.util.Compression;
 import dev.ribica.oneblockplugin.util.UUIDNamePair;
@@ -19,20 +19,20 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nullable;
-import java.io.IOException;
 import java.util.*;
 import java.util.logging.Level;
-import java.util.stream.Collectors;
 
 public class Island {
     private final OneBlockPlugin plugin;
     private final @Getter UUID uuid;
     private final @Getter IslandMember owner;  // Member representing the owner's stats - not stored in members map
     private Component name;
-    private final Map<UUID, IslandMember> members = new HashMap<>();
+    public final @Getter IslandMembers members;  // Public final field for direct access
 
-    // Holds the sum of all challenge progresses by members for this island (key: challengeId, value: total progress)
-    private final Map<String, Integer> challengeProgress = new HashMap<>();
+    private @Getter @Setter int currentStageId = 0;
+    private @Getter @Setter int blocksMinedSinceLastStage = 0;
+    private @Getter @Setter int stageCycles = 0;
+
 
     private @Getter @Setter boolean unloaded = false;
     private @Getter volatile boolean obsolete = false;
@@ -53,35 +53,7 @@ public class Island {
         this.uuid = uuid;
         this.owner = owner;
         this.name = name;
-    }
-
-    public void removeMember(@NonNull UUID memberUuid) {
-        if (memberUuid.equals(owner.getId().getUuid())) {
-            throw new IllegalArgumentException("Cannot remove the owner from the island");
-        }
-        IslandMember member = members.get(memberUuid);
-        if (member == null) {
-            throw new IllegalArgumentException("Member with UUID " + memberUuid + " (name: " + UUIDNamePair.of(memberUuid).getName() + ") is not part of this island");
-        }
-        // no removing, just set permissions to 0
-        member.setPermissions(0);
-        plugin.getStorageProvider().removeMemberFromUserDataProfiles(member.getId(), this.uuid);
-    }
-
-    public void putMember(@NonNull IslandMember member) {
-        if (member.getId().equals(owner.getId())) {
-            throw new IllegalArgumentException("Cannot put the owner in the members map");
-        }
-        members.put(member.getId().getUuid(), member);
-    }
-
-    public List<IslandMember> getMembers() {
-        return members.values().stream().filter(im -> im.getPermissions() != 0).toList();
-    }
-
-    public List<IslandMember> getAllMembers() {
-        // i ovi koji imaju permissions == 0, bivši članovi čije podatke moramo čuvati
-        return new ArrayList<>(members.values());
+        this.members = new IslandMembers(this);
     }
 
     /**
@@ -103,6 +75,8 @@ public class Island {
      * @param material Material of the mined block
      */
     public void trackBlockMined(UUID playerUuid, String playerName, Material material) {
+        blocksMinedSinceLastStage++;
+
         // Check if it's the owner
         IslandMember member = playerUuid.equals(owner.getId().getUuid()) ? owner : getMember(playerUuid);
         if (member == null) {
@@ -113,21 +87,56 @@ public class Island {
     }
 
     /**
-     * Get the current stage of this island based on progression
-     * @return The current Stage enum value
+     * Get the current stage ID of this island based on progression
+     * @return The current stage ID
      */
-    public Stage getStage() {
-        int progress = challengeProgress.getOrDefault("stages", 0);
-        int stageLevel;
-        if (progress > 70) {
-            stageLevel = 8;
-        } else {
-            stageLevel = (progress / 10) + 1;
-            if (stageLevel > 8) stageLevel = 8;
-        }
-        return Stage.getByLevel(stageLevel);
+    public StageManager.Stage getStage() {
+        return plugin.getStageManager().getStage(currentStageId);
     }
 
+    /**
+     * Attempts to advance to the next stage
+     * @return true if advancement was successful, false if not enough blocks mined
+     */
+    public boolean advanceToNextStage() {
+        // Check if player has mined at least 50 blocks in current stage
+        if (blocksMinedSinceLastStage < 50) {
+            return false;
+        }
+
+        var stagesMap = plugin.getStageManager().getAllStages();
+        if (stagesMap.isEmpty()) {
+            plugin.getLogger().warning("No stages available for advancement");
+            return false;
+        }
+
+        // Find the highest stage ID (last stage)
+        int maxStageId = stagesMap.keySet().stream().mapToInt(Integer::intValue).max().orElse(0);
+
+        // If at the last stage, go back to stage 1 (not 0 since 0 is tutorial)
+        if (currentStageId >= maxStageId) {
+            currentStageId = 1;
+            stageCycles++;
+        } else {
+            currentStageId++;
+        }
+
+        // Reset block counter for the new stage
+        blocksMinedSinceLastStage = 0;
+        return true;
+    }
+
+    /**
+     * Get the number of blocks needed to advance to the next stage
+     * @return Number of blocks still needed (0 if can advance)
+     */
+    public int getBlocksNeededForNextStage() {
+        return Math.max(0, getNextStageBlocksRequirement() - blocksMinedSinceLastStage);
+    }
+
+    public int getNextStageBlocksRequirement() {
+        return 50;
+    }
 
     public void markObsolete() {
         if (this.obsolete)
@@ -144,8 +153,8 @@ public class Island {
         if (ownerPlayer != null && ownerPlayer.isOnline() && plugin.getUser(ownerPlayer).getActiveIsland() == this) {
             return false;
         }
-        for (UUID memberUuid : members.keySet()) {
-            Player p = Bukkit.getPlayer(memberUuid);
+        for (IslandMember member : members.getAllMembers()) {
+            Player p = Bukkit.getPlayer(member.getUuid());
             if (p != null && p.isOnline() && plugin.getUser(p).getActiveIsland() == this) {
                 return false;
             }
@@ -176,10 +185,7 @@ public class Island {
     }
 
     public void updateMemberPermissions(UUID memberUuid, int newPermissions) {
-        IslandMember member = getMember(memberUuid);
-        if (member != null) {
-            members.put(memberUuid, new IslandMember(this.uuid, member.getId(), newPermissions, member.getAddedAt()));
-        }
+        members.updatePermissions(memberUuid, newPermissions);
     }
 
     public @NotNull Component getName() {
@@ -190,18 +196,11 @@ public class Island {
     }
 
     public void addMember(@NonNull UUIDNamePair memberId, int permission, Date addedAt) {
-        if (owner.getId() == memberId) {
-            throw new IllegalArgumentException("Cannot add owner as a member");
-        }
-        members.put(memberId.getUuid(), new IslandMember(this.uuid, memberId, permission, addedAt));
-    }
-
-    public @Nullable IslandMember getMember(@NonNull UUID memberUuid) {
-        return members.get(memberUuid);
+        members.addMember(memberId, permission, addedAt);
     }
 
     public Location getOrigin() {
-        return plugin.getIslandAllocator().getIslandOrigin(this);
+        return plugin.getIslandAllocator2().getIslandOrigin(this);
     }
 
     public CuboidRegion getBoundary() {
@@ -218,59 +217,32 @@ public class Island {
         return new CuboidRegion(BukkitAdapter.adapt(origin.getWorld()), min, max);
     }
 
-    public Serialized serialize() {
-        byte[] gzipSchematicData;
-        try {
-            gzipSchematicData = WorldUtils.getRawSchematic(this.getBoundary(), this.getOrigin());
-        } catch (IOException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to get schematic for island " + this.uuid, e);
-            return null;
-        }
-        byte[] zstdSchematicData;
-        try {
-            zstdSchematicData = Compression.zstdCompressAndVerify(Compression.gzipDecompress(gzipSchematicData), 15);
-        } catch (IOException | RuntimeException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to compress island schematic for island " + this.uuid, e);
-            return new Serialized(this, gzipSchematicData, "gzip");
-        }
-        return new Serialized(this, zstdSchematicData, "zstd");
+    public @Nullable IslandMember getMember(@NonNull UUID memberUuid) {
+        return members.getMember(memberUuid);
     }
 
-    // --- CHALLENGE PROGRESS AGGREGATION ---
-    public Map<String, Integer> getChallengeProgress() {
-        return challengeProgress;
+    public void removeMember(@NonNull UUID memberUuid) {
+        members.removeMember(memberUuid);
     }
 
-    /**
-     * Recalculate the total challenge progress for this island from all members (including owner and ex-members)
-     * This should be called after loading all members from storage.
-     */
-    public void recalculateChallengeProgress() {
-        challengeProgress.clear();
-        // Include owner
-        aggregateMemberChallengeProgress(owner);
-        // Include all members (including ex-members)
-        for (IslandMember member : members.values()) {
-            aggregateMemberChallengeProgress(member);
-        }
+    public void putMember(@NonNull IslandMember member) {
+        members.putMember(member);
     }
 
-    private void aggregateMemberChallengeProgress(IslandMember member) {
-        if (member == null) return;
-        Map<String, Integer> memberProgress = member.getChallengeProgress();
-        for (Map.Entry<String, Integer> entry : memberProgress.entrySet()) {
-            challengeProgress.merge(entry.getKey(), entry.getValue(), Integer::sum);
-        }
+    public boolean hasMember(@NonNull UUID memberUuid, boolean mustBeCurrentMember) {
+        return members.hasMember(memberUuid, mustBeCurrentMember);
     }
 
-    @RequiredArgsConstructor
-    public static class Serialized {
-        private final @Getter Island island;
-        private final @Getter byte[] rawData;
-        private final @Getter String compressionType;
+    public boolean isCurrentMemberOrOwner(@NonNull UUID memberUuid) {
+        return memberUuid.equals(owner.getUuid()) || hasMember(memberUuid, true);
+    }
 
-        public byte[] decompress() throws IOException {
-            return compressionType.equals("zstd") ? Compression.zstdDecompress(rawData) : Compression.gzipDecompress(rawData);
-        }
+    public List<IslandMember> getCurrentMembers() {
+        return members.getCurrentMembers();
+    }
+
+    public List<IslandMember> getAllMembers() {
+        // i ovi koji imaju permissions == 0, bivši članovi čije podatke moramo čuvati
+        return members.getAllMembers();
     }
 }

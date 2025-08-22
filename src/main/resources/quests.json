@@ -1,0 +1,42 @@
+{
+  "quests": [
+    {
+      "id": 1,
+      "name": "Tutorial #1",
+      "description": "Početni quest.",
+      "parts": [
+        {
+          "type": "SHOW_INFO_MESSAGE",
+          "parameters": {
+            "key": "quests.introduction1",
+            "require_click": true,
+            "apply_slowdown": true
+          }
+        },
+        {
+          "type": "SHOW_INFO_MESSAGE",
+          "parameters": {
+            "key": "quests.introduction2",
+            "require_click": true,
+            "apply_slowdown": true
+          }
+        },
+        {
+          "type": "MINE_SOURCE_BLOCK_0",
+          "parameters": {
+            "count": 10
+          }
+        },
+        {
+          "type": "PLACE_BLOCKS_ON_ISLAND",
+          "parameters": {
+            "blocks": {
+              "DIRT": 5
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+

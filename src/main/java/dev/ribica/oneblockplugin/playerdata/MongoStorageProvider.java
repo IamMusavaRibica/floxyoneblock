@@ -7,12 +7,12 @@ import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Projections;
+import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.model.Updates;
 import com.mongodb.client.result.UpdateResult;
-import com.sk89q.worldedit.regions.Region;
 import dev.ribica.oneblockplugin.OneBlockPlugin;
 import dev.ribica.oneblockplugin.islands.Island;
-import dev.ribica.oneblockplugin.islands.IslandAllocator;
+import dev.ribica.oneblockplugin.islands.IslandAllocator2;
 import dev.ribica.oneblockplugin.islands.IslandMember;
 import dev.ribica.oneblockplugin.util.TimeUtils;
 import dev.ribica.oneblockplugin.util.UUIDNamePair;
@@ -21,17 +21,14 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.apache.commons.lang3.tuple.Pair;
 import org.bson.Document;
 import org.bson.UuidRepresentation;
 import org.bson.conversions.Bson;
-import org.bson.types.Binary;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.*;
 import java.util.logging.Level;
@@ -48,8 +45,11 @@ public class MongoStorageProvider {
     private final MongoClient mongoClient;
     private final MongoDatabase database;
     private final MongoCollection<Document> playersCollection;
-    private final MongoCollection<Document> profilesCollection;
     private BukkitTask autoSaveTask;
+
+
+    private final MongoCollection<Document> islandDataCollection;
+    private final MongoCollection<Document> islandMembersCollection;
 
 
     public MongoStorageProvider(OneBlockPlugin plugin) {
@@ -67,14 +67,11 @@ public class MongoStorageProvider {
         this.mongoClient = MongoClients.create(settings);
         this.database = mongoClient.getDatabase("oneblock");
         this.playersCollection = database.getCollection("players");
-        this.profilesCollection = database.getCollection("profiles");
 
-        if (this.playersCollection == null) {
-            logger.warning("MongoDB collections are not initialized properly. Please check your MongoDB connection.");
-            plugin.getServer().getPluginManager().disablePlugin(plugin);
-        } else {
-            logger.info("MongoDB connection established successfully");
-        }
+        this.islandDataCollection = database.getCollection("island_data");
+        this.islandMembersCollection = database.getCollection("island_members");
+
+        logger.info("MongoDB connection established successfully");
     }
 
     public void startAutoSaving() {
@@ -101,50 +98,69 @@ public class MongoStorageProvider {
                 }
             }
             logger.info("Auto save island data finished in " + TimeUtils.msSince(start) + " ms");
-        }, 400, 400);
+        }, 400, 4000);
     }
 
-
     protected void saveIsland(@NonNull Island island) {
-        Island.Serialized is = island.serialize();
-        if (is == null) {
-            logger.warning("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-            logger.warning("@ Skipping saving island " + island.getUuid());
-            logger.warning("@ by player " + island.getOwner().getId().getName());
-            logger.warning("@ ");
-            logger.warning("@ If this happens often, the above player might be abusing an exploit!");
-            logger.warning("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-            throw new RuntimeException("Failed to serialize island!");
-        } else {
-            List<Bson> chx = new ArrayList<>();
+        // No longer save schematics - world files handle persistence automatically
+        // Only save island metadata (members, stats, etc.)
 
-            chx.add(Updates.set("schematic_compression_type", is.getCompressionType()));
-            chx.add(Updates.set("schematic", is.getRawData()));
-            chx.add(Updates.set("last_updated", Date.from(Instant.now())));
+        UUID islandUuid = island.getUuid();
+        Date lastUpdated = Date.from(Instant.now());
 
-            // Save members and owner
-            List<Document> memberDocs = island.getAllMembers().stream()
-                    .map(IslandMember::serialize)
-                    .toList();
-            chx.add(Updates.set("members", memberDocs));
-            chx.add(Updates.set("owner", island.getOwner().serialize()));
-
-            // Set a custom name for this island if it has one
-            if (island.hasCustomName())
-                chx.add(Updates.set("name", plugin.serializeMiniMessage(island.getName())));
-
-            // Update this island in the database
-            UpdateResult res = profilesCollection.updateOne(eq("uuid", island.getUuid()), Updates.combine(chx));
-            assert res.getMatchedCount() == 1 && res.getModifiedCount() == 1;
+        // Save members data
+        List<Document> memberDocs = island.members.serialize();
+        for (var memberDoc : memberDocs) {
+            memberDoc.append("island_uuid", islandUuid);
+            memberDoc.append("last_updated", lastUpdated);
+            islandMembersCollection.updateOne(
+                    new Document("island_uuid", islandUuid)
+                            .append("uuid", memberDoc.get("uuid")),
+                    new Document("$set", memberDoc),
+                    new UpdateOptions().upsert(true)
+            );
         }
+
+        // Save island data (metadata only)
+        List<Bson> dataUpdates = new ArrayList<>();
+        dataUpdates.add(Updates.set("uuid", islandUuid));
+        dataUpdates.add(Updates.set("owner", island.getOwner().serialize()));
+        dataUpdates.add(Updates.set("last_updated", lastUpdated));
+
+        // Set a custom name for this island if it has one
+        if (island.hasCustomName())
+            dataUpdates.add(Updates.set("name", plugin.serializeMiniMessage(island.getName())));
+
+        dataUpdates.add(Updates.set("stage", island.getCurrentStageId()));
+        dataUpdates.add(Updates.set("stage_progress", island.getBlocksMinedSinceLastStage()));
+        dataUpdates.add(Updates.set("stage_progress", island.getStageCycles()));
+
+        UpdateResult dataResult = islandDataCollection.updateOne(
+                eq("uuid", islandUuid),
+                Updates.combine(dataUpdates),
+                new UpdateOptions().upsert(true)
+        );
+
+        logger.info("Saved island metadata for " + islandUuid + " (world files saved automatically)");
     }
 
     public void removeMemberFromUserDataProfiles(@NonNull UUIDNamePair exMemberUuid, @NonNull UUID islandUuid) {
         UUID userUuid = exMemberUuid.getUuid();
+        // No longer need to update profiles in players collection since we query from island_members
+        // The member removal is already handled by IslandMembers.removeMember() which sets permissions to 0
+
         if (userManager.hasUser(userUuid)) {
-            // Player is online, update their in-memory data
-            if (!userManager.getUser(userUuid).getProfiles().remove(islandUuid)) {
-                logger.severe("Tried to remove island " + islandUuid + " from user " + exMemberUuid.getName() + " but it was not in their profiles!");
+            // Player is online, check if they need to switch islands
+            User user = userManager.getUser(userUuid);
+            if (user.getActiveIsland().getUuid().equals(islandUuid)) {
+                // Switch to their owned island
+                plugin.runTask(() -> {
+                    user.switchActiveIsland(user.getOwnedIslandUuid()).whenComplete((newIsland, error) -> {
+                        if (error != null) {
+                            plugin.getLogger().severe("Failed to switch user to owned island after being kicked: " + error.getMessage());
+                        }
+                    });
+                });
             }
         } else {
             plugin.runTaskAsync(() -> {
@@ -152,20 +168,19 @@ public class MongoStorageProvider {
                 Document playerDoc = playersCollection.find(eq("uuid", userUuid))
                         .projection(Projections.include("data.selected_profile", "data.owned_profile"))
                         .first();
-                assert playerDoc != null;
+                if (playerDoc != null) {
+                    Document dataDoc = playerDoc.get("data", Document.class);
+                    UUID selectedProfile = dataDoc.get("selected_profile", UUID.class);
+                    UUID ownedProfile = dataDoc.get("owned_profile", UUID.class);
 
-                Document dataDoc = playerDoc.get("data", Document.class);
-                UUID selectedProfile = dataDoc.get("selected_profile", UUID.class);
-                UUID ownedProfile = dataDoc.get("owned_profile", UUID.class);
-
-                List<Bson> chx = new ArrayList<>();
-                chx.add(Updates.pull("data.profiles", islandUuid));
-                // if data.selected_profile == the island they were kicked from, we set it to data.owned_profile
-                if (islandUuid.equals(selectedProfile)) {
-                    chx.add(Updates.set("data.selected_profile", ownedProfile));
+                    // If data.selected_profile == the island they were kicked from, set it to data.owned_profile
+                    if (islandUuid.equals(selectedProfile)) {
+                        playersCollection.updateOne(
+                            eq("uuid", userUuid),
+                            Updates.set("data.selected_profile", ownedProfile)
+                        );
+                    }
                 }
-
-                UpdateResult result = playersCollection.updateOne(eq("uuid", userUuid), Updates.combine(chx));
             });
         }
     }
@@ -187,8 +202,9 @@ public class MongoStorageProvider {
                         Updates.set("name", UUIDNamePair.of(user.getUuid()).getName()),
                         Updates.set("last_updated", Date.from(Instant.now())),
                         Updates.set("data.selected_profile", user.getActiveIsland().getUuid()),
-                        Updates.set("data.profiles", user.getProfiles()),
-                        Updates.set("data.collections", minedBlocksDoc)
+                        Updates.set("data.collections", minedBlocksDoc),
+                        Updates.set("data.quests", user.quests.serialize()),
+                        Updates.set("settings.challenge_bar", user.isWantsToSeeChallengeBar())
                 )
         );
 
@@ -209,7 +225,8 @@ public class MongoStorageProvider {
         UUIDNamePair userId = UUIDNamePair.of(doc);
 
         Document data = doc.get("data", Document.class);
-        List<UUID> profiles = data.getList("profiles", UUID.class);
+        // Get profiles from island_members collection instead of players collection
+        List<UUID> profiles = getUserProfiles(uuid);
 
         // Step 1: check if the user has profiles.
         //   If not, create a fresh island for them
@@ -217,16 +234,10 @@ public class MongoStorageProvider {
         UUID ownedProfileUuid = data.get("owned_profile", UUID.class);
         if (profiles.isEmpty()) {
             Island island = Islands.generateNewIsland(userId);
-            prepareAndPasteIsland(new Island.Serialized(island, new byte[0], "new_island"));
+            prepareAndLoadIsland(island, true); // true = new island
 
             user.setActiveIsland(island);
-            profiles.add(island.getUuid());
             ownedProfileUuid = island.getUuid();
-            profilesCollection.insertOne(new Document()
-                    .append("uuid", island.getUuid())
-                    .append("owner", island.getOwner().serialize())
-                    .append("last_updated", Date.from(Instant.now()))
-            );
             playersCollection.updateOne(
                     eq("uuid", user.getUuid()),
                     Updates.set("data.owned_profile", island.getUuid())  // this is just for convenience
@@ -247,6 +258,9 @@ public class MongoStorageProvider {
             }
         }
 
+        Document questsDoc = data.get("quests", Document.class);
+        user.loadQuests(questsDoc);
+
         Document minedBlocksDoc = data.get("collections", Document.class);
         parseMinedBlocks(minedBlocksDoc, user.getMinedBlocks());
 
@@ -254,9 +268,16 @@ public class MongoStorageProvider {
         user.getProfiles().addAll(profiles);
         user.setOwnedIslandUuid(ownedProfileUuid);
 
+
+        Document settingsDoc = doc.get("settings", Document.class);
+        if (settingsDoc == null)
+            settingsDoc = new Document();
+
+        user.setWantsToSeeChallengeBar(settingsDoc.getBoolean("challenge_bar", true));
+
         user.ensureLoaded();
         logger.info("Loaded user " + uuid );
-        userManager.addUser(user);
+//        userManager.addUser(user);  do this in PlayerJoinEvent to ensure player actually joined
         return user;
     }
 
@@ -279,83 +300,53 @@ public class MongoStorageProvider {
         }
     }
 
-    public void prepareAndPasteIsland(Island.Serialized is) {
-        Island island = is.getIsland();
-        IslandAllocator allocator = plugin.getIslandAllocator();
+    public void prepareAndLoadIsland(Island island, boolean isNewIsland) {
+        IslandAllocator2 allocator = plugin.getIslandAllocator2();
         if (allocator.getSlot(island) != -1) {
             // if the island is already loaded somewhere
-            logger.warning("Tried to paste island " + island.getUuid() + " but it is already allocated!!");
+            logger.warning("Tried to load island " + island.getUuid() + " but it is already allocated!!");
             return;
         }
         Location origin = allocator.allocate(island);
+        // Register WorldGuard region for the island
         plugin.getIslandRegionManager().registerRegion(island);
 
-        // This is important, clear the area, because pasting a schematic will not paste air blocks from schematic!
-        Region region = island.getBoundary();
-        plugin.getComponentLogger().info(Component.text(
-                "before-paste filling air at slot: " + allocator.getSlot(island) + " region: " + region.getMinimumPoint() + " to " + region.getMaximumPoint(),
-                NamedTextColor.LIGHT_PURPLE
-        ));
-        WorldUtils.fillAir(origin.getWorld(), region);
-
-        try {
-            if (is.getCompressionType().equals("new_island")) {
-                // a brand-new island, we don't have a schematic for it yet, put sponge in the origin
-                WorldUtils.setBlockData(origin, Material.SPONGE.createBlockData());
-            } else {
-                WorldUtils.pasteSchematic(is.decompress(), origin);
-            }
-        } catch (IOException e) {
-            logger.severe("Failed to paste island schematic for island " + island.getUuid() + ": " + e.getMessage());
-            throw new RuntimeException("Failed to paste island schematic", e);
+        // For new islands: only create the initial one block
+        // For existing islands: world files will automatically load all blocks
+        if (isNewIsland) {
+            plugin.getComponentLogger().info(Component.text(
+                    "Creating new island in world: " + origin.getWorld().getName() + " - placing initial sponge block",
+                    NamedTextColor.LIGHT_PURPLE
+            ));
+            WorldUtils.setBlockData(origin, Material.SPONGE.createBlockData());
+        } else {
+            plugin.getComponentLogger().info(Component.text(
+                    "Loading existing island in world: " + origin.getWorld().getName() + " - blocks will load from world files automatically",
+                    NamedTextColor.LIGHT_PURPLE
+            ));
+            // No need to do anything - the world loading system automatically restores all placed blocks
         }
     }
 
-    public Pair<Island, Document> loadIslandMetadata(@NonNull UUID islandUuid, boolean onlyBasicData) {
-        var req = profilesCollection.find(eq("uuid", islandUuid));
-        if (onlyBasicData) {
-            req = req.projection(Projections.fields(
-                    Projections.exclude("schematic", "schematic_compression_type")
-            ));
+    public Island loadIslandFromDatabase(@NonNull UUID islandUuid) {
+        Document islandDataDoc = islandDataCollection.find(eq("uuid", islandUuid)).first();
+        if (islandDataDoc == null) {
+            throw new RuntimeException("Island data doc not found: " + islandUuid);
         }
-        Document islandDoc = req.first();
-        if (islandDoc == null)
-            throw new RuntimeException("Island not found: " + islandUuid);
 
-        // load the owner
-        IslandMember owner = IslandMember.deserialize(islandDoc.get("owner", Document.class), islandUuid);
-        UUIDNamePair ownerUuid = owner.getId();
-
-        // get custom name if present
-        String _name = islandDoc.getString("name");
+        IslandMember owner = IslandMember.deserialize(islandDataDoc.get("owner", Document.class), islandUuid);
+        String _name = islandDataDoc.getString("name");
         Component islandName = _name != null ? plugin.deserializeMiniMessage(_name, false) : null;
 
-        // Create the island
         Island island = new Island(islandUuid, owner, islandName);
+        island.setCurrentStageId(islandDataDoc.getInteger("stage", 0));
+        island.setBlocksMinedSinceLastStage(islandDataDoc.getInteger("stage_progress", 0));
+        island.setStageCycles(islandDataDoc.getInteger("stage_cycles", 0));
 
-        // Register members using deserialize
-        islandDoc.getList("members", Document.class, new ArrayList<>()).forEach(memberDoc -> {
-            IslandMember member = IslandMember.deserialize(memberDoc, islandUuid);
-            island.putMember(member);  // permissions == 0 means they are a past member!
-        });
+        List<Document> memberDocs = islandMembersCollection.find(eq("island_uuid", islandUuid)).into(new ArrayList<>());
+        island.members.deserialize(memberDocs);
 
-        // Recalculate the island's challenge progress from all members (including owner)
-        island.recalculateChallengeProgress();
-
-        return Pair.of(island, islandDoc);
-    }
-
-    protected Island.Serialized loadIslandFromDatabase(@NonNull UUID islandUuid) {
-        var pair = loadIslandMetadata(islandUuid, false);
-        Island island = pair.getLeft();
-        Document islandDoc = pair.getRight();
-
-        String compressionType = islandDoc.getString("schematic_compression_type");
-        if (compressionType == null) {
-            return new Island.Serialized(island, new byte[0], "new_island");
-        }
-        byte[] schematicData = islandDoc.get("schematic", Binary.class).getData();
-        return new Island.Serialized(island, schematicData, compressionType);
+        return island;
     }
 
     private Document registerNewUser(User user) {
@@ -364,14 +355,41 @@ public class MongoStorageProvider {
         // will generate a temporary name because we don't have their real username yet
         UUIDNamePair userId = UUIDNamePair.of(userUuid);
 
-        Document data = new Document("profiles", new ArrayList<UUID>());
+        // No longer create profiles field - profiles are now queried from island_members collection
         Document doc = new Document()
-                .append("joined_at", Date.from(Instant.now()))
-                .append("data", data);
+                            .append("data", new Document())
+                            .append("joined_at", Date.from(Instant.now()));
         userId.serialize(doc);
 
         playersCollection.insertOne(doc);
         return doc;
+    }
+
+    public List<UUID> getUserProfiles(@NonNull UUID userUuid) {
+        List<UUID> profiles = new ArrayList<>();
+
+        // Query island_members collection for all islands where this user is a member
+        List<Document> memberDocs = islandMembersCollection.find(eq("uuid", userUuid)).into(new ArrayList<>());
+
+        for (var d : memberDocs) {
+            var islandUuid = d.get("island_uuid", UUID.class);
+            int permissions = d.getInteger("permissions", 0);
+
+            if (permissions > 0 && islandUuid != null) {
+                profiles.add(islandUuid);
+            }
+        }
+
+        // Also check if the user owns any islands (from island_data collection)
+        List<Document> ownedIslands = islandDataCollection.find(eq("owner.uuid", userUuid)).into(new ArrayList<>());
+        for (var d : ownedIslands) {
+            var islandUuid = d.get("uuid", UUID.class);
+            if (islandUuid != null && !profiles.contains(islandUuid)) {
+                profiles.add(islandUuid);
+            }
+        }
+
+        return profiles;
     }
 
     public void shutdown() {
@@ -388,5 +406,4 @@ public class MongoStorageProvider {
         }
     }
 }
-
 

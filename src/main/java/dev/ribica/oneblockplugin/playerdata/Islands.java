@@ -77,8 +77,7 @@ public class Islands {
     }
 
     public static void getCachedIslands(@NonNull Map<UUID, Island> map) {
-        getInstance();
-        map.putAll(instance.cachedIslands);
+        map.putAll(getInstance().cachedIslands);
     }
 
     public static void unloadIsland(@NonNull UUID islandUuid) {
@@ -105,6 +104,19 @@ public class Islands {
     private CompletableFuture<Island> loadIsland0(@NonNull UUID islandUuid) {
         logger1.info(PREFIX_LOAD.append(Component.text("started loading island " + islandUuid, NamedTextColor.GRAY)));
         long time0 = TimeUtils.ms();
+
+        // Check if island is currently being unloaded - if so, wait for unloading to complete
+        Boolean isUnloading = unloadingIslands.get(islandUuid);
+        if (isUnloading != null && isUnloading) {
+            logger1.info(PREFIX_LOAD.append(Component.text("island " + islandUuid + " is being unloaded, waiting for completion before loading", NamedTextColor.YELLOW)));
+            // Wait for unloading to complete by acquiring the lock
+            Object lock = islandLocks.computeIfAbsent(islandUuid, k -> new Object());
+            synchronized (lock) {
+                // Once we get the lock, the unloading should be complete
+                // Now proceed with normal loading
+                logger1.info(PREFIX_LOAD.append(Component.text("unloading completed for " + islandUuid + ", proceeding with load", NamedTextColor.YELLOW)));
+            }
+        }
 
         CompletableFuture<Island> existingFuture = loadingIslands.get(islandUuid);
         if (existingFuture != null) {
@@ -150,22 +162,25 @@ public class Islands {
 
         long start = TimeUtils.ms();
         try {
-            Island.Serialized serialized = plugin.getStorageProvider().loadIslandFromDatabase(islandUuid);
-            Island island = serialized.getIsland();
+            // Load island metadata from database (no longer loading schematics)
+            Island island = plugin.getStorageProvider().loadIslandFromDatabase(islandUuid);
 
             logger1.info(Component.text("Islands#loadIsland(): ", NamedTextColor.DARK_BLUE).append(Component.text("loaded from database island owner: " + island.getOwner().getId().getName(), NamedTextColor.GRAY)));
-            plugin.getStorageProvider().prepareAndPasteIsland(serialized);
+
+            // Prepare and load the island (allocates world, registers regions, etc.)
+            // World files will be automatically loaded by the server when the world is created/accessed
+            plugin.getStorageProvider().prepareAndLoadIsland(island, false); // false = existing island, not new
+
             cachedIslands.put(islandUuid, island);
             future.complete(island);
         } catch (Exception e) {
             future.completeExceptionally(e);
         } finally {
             loadingIslands.remove(islandUuid);
+            guards.put(islandUuid, false);
         }
-        logger1.info(Component.text("Island " + islandUuid + " loaded and pasted in "
+        logger1.info(Component.text("Island " + islandUuid + " loaded and allocated in "
                 + TimeUtils.msSince(start) + " ms", NamedTextColor.YELLOW));
-
-        guards.put(islandUuid, false);
     }
 
     private CompletableFuture<Void> saveIsland0(@NonNull UUID islandUuid, boolean earlyUncache) {
@@ -248,17 +263,14 @@ public class Islands {
                 return;
             }
 
-            // remove island from cache early to prevent other threads from teleporting players to it before it's
-            // properly cleaned up?
-//            cachedIslands.remove(islandUuid);
-
             unloadingIslands.put(islandUuid, true);
             try {
-//                logger.info("Islands#unloadIsland(): passed all the checks, started unload for: " + island.getUuid());
+                // No need to save island schematic - world files handle persistence automatically
+                // Just save the island metadata (members, stats, etc.) and free the allocator
                 saveIsland0(islandUuid, true).join();
                 if (removeWorldGuardRegion)
                     plugin.getIslandRegionManager().unregisterRegion(island);  // this calls getBoundary so it must be called before allocator free
-                plugin.getIslandAllocator().free(island);
+                plugin.getIslandAllocator2().free(island); // This will save world files automatically
                 island.markObsolete();
                 logger.info("Islands#unloadIsland(): island " + island.getUuid() + " unloaded successfully");
             } catch (CompletionException e) {

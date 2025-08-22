@@ -37,7 +37,7 @@ public class UserManager {
         userMap.remove(uuid);
     }
 
-    public User createNewUser(UUID uuid) {
+    protected User createNewUser(UUID uuid) {
         // Create a temporary User, don't add it to userMap. The storage provider will take this User,
         // feed it with appropriate data (player stats) and then call #addUser
         return new User(plugin, uuid);

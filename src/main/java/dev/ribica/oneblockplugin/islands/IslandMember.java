@@ -24,7 +24,6 @@ public class IslandMember {
     private @Setter int permissions;  // TODO: make this 'Long' later
     private final @NonNull Date addedAt;
     private final Map<Material, Integer> minedBlocks = new HashMap<>();
-    private final Map<String, Integer> challengeProgress = new HashMap<>();
 
     public void trackBlockMined(Material material) {
         minedBlocks.put(material, minedBlocks.getOrDefault(material, 0) + 1);
@@ -34,8 +33,8 @@ public class IslandMember {
         return minedBlocks.getOrDefault(material, 0);
     }
 
-    public void incrementChallengeProgress(@NonNull String challengeId) {
-        challengeProgress.put(challengeId, challengeProgress.getOrDefault(challengeId, 0) + 1);
+    public UUID getUuid() {
+        return id.getUuid();
     }
 
     /**
@@ -54,11 +53,11 @@ public class IslandMember {
             doc.append("collections", collectionsDoc);
         }
 
-        Document progressDoc = new Document();
-        challengeProgress.forEach(progressDoc::append);
-        if (!progressDoc.isEmpty()) {
-            doc.append("challenge_progress", progressDoc);
-        }
+//        Document progressDoc = new Document();
+//        challengeProgress.forEach(progressDoc::append);
+//        if (!progressDoc.isEmpty()) {
+//            doc.append("challenge_progress", progressDoc);
+//        }
 
         return doc;
     }
@@ -94,12 +93,12 @@ public class IslandMember {
         }
 
         // load challenge progress
-        Document progressDoc = doc.get("challenge_progress", Document.class);
-        if (progressDoc != null) {
-            for (String key : progressDoc.keySet()) {
-                member.challengeProgress.put(key, progressDoc.getInteger(key, 0));
-            }
-        }
+//        Document progressDoc = doc.get("challenge_progress", Document.class);
+//        if (progressDoc != null) {
+//            for (String key : progressDoc.keySet()) {
+//                member.challengeProgress.put(key, progressDoc.getInteger(key, 0));
+//            }
+//        }
 
         return member;
     }

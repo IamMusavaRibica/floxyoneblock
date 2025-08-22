@@ -2,22 +2,37 @@ package dev.ribica.oneblockplugin;
 
 import co.aikar.commands.InvalidCommandArgument;
 import co.aikar.commands.PaperCommandManager;
+import dev.ribica.oneblockplugin.challenges.ChallengeConfigManager;
+import dev.ribica.oneblockplugin.challenges.ChallengesEventListener;
 import dev.ribica.oneblockplugin.islands.*;
+import dev.ribica.oneblockplugin.items.ItemRegistry;
+import dev.ribica.oneblockplugin.items.ItemsEventListener;
+import dev.ribica.oneblockplugin.items.impl.FancyGold;
 import dev.ribica.oneblockplugin.oneblock.OneBlockListener;
+import dev.ribica.oneblockplugin.oneblock.StageManager;
 import dev.ribica.oneblockplugin.playerdata.*;
+import dev.ribica.oneblockplugin.quests.QuestsManager;
 import lombok.Getter;
 import lombok.Setter;
+import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.translation.GlobalTranslator;
+import net.kyori.adventure.translation.TranslationStore;
+import net.kyori.adventure.util.UTF8ResourceBundleControl;
 import org.bukkit.GameRule;
+import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
 import javax.annotation.Nullable;
+import java.text.MessageFormat;
 import java.util.Collections;
+import java.util.Locale;
+import java.util.ResourceBundle;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -30,15 +45,42 @@ public class OneBlockPlugin extends JavaPlugin {
     private @Getter long currentTick = 0;
     private @Getter UserManager userManager;
     private @Getter MongoStorageProvider storageProvider;
-    private @Getter IslandAllocator islandAllocator;
+
+    private @Getter IslandAllocator2 islandAllocator2;
+
     private @Getter IslandRegionManager islandRegionManager;
+    private @Getter ChallengeConfigManager challengeConfigManager;
+    private @Getter StageManager stageManager;
+    private @Getter QuestsManager questsManager;
 
     private @Getter @Setter boolean stopping = false;
+
+
+    private @Getter FakeBeaconRenderer fakeBeaconRenderer;
+    private @Getter KlyBeaconRenderer klyBeaconRenderer;
+    private @Getter ItemRegistry itemRegistry;
+
 
     @Override
     public void onEnable() {
         instance = this;
         logger = getLogger();
+
+        loadTranslations();
+
+        fakeBeaconRenderer = new FakeBeaconRenderer(this);
+        fakeBeaconRenderer.start();
+        klyBeaconRenderer = new KlyBeaconRenderer(this);
+        klyBeaconRenderer.start();
+
+        // Initialize challenge configuration first
+        challengeConfigManager = new ChallengeConfigManager(this);
+
+        // Initialize stage manager
+        stageManager = new StageManager(this);
+
+        questsManager = new QuestsManager(this);
+        questsManager.loadQuests();
 
         getServer().getScheduler().runTaskTimer(this, () -> currentTick++, 0L, 1L);
         registerAikarCommands();
@@ -52,15 +94,23 @@ public class OneBlockPlugin extends JavaPlugin {
         userManager = new UserManager(this);
         storageProvider = new MongoStorageProvider(this);
         storageProvider.startAutoSaving();
-        islandAllocator = new IslandAllocator(this, islandsWorld);
-        islandRegionManager = new IslandRegionManager(this, islandsWorld);
 
-        // Clear any leftover island regions from previous server runs
+        islandAllocator2 = new IslandAllocator2(this);
+
+        islandRegionManager = new IslandRegionManager(this, islandsWorld);
         islandRegionManager.clearAllIslandRegions();
+
+
+        // register items
+        itemRegistry = new ItemRegistry(this);
+        new ItemsEventListener(this);
+        itemRegistry.registerItem(new FancyGold());
+
 
         getServer().getPluginManager().registerEvents(new OneBlockListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerJoinQuitListener(this), this);
         getServer().getPluginManager().registerEvents(new Fix_weird_commands(this), this);
+        getServer().getPluginManager().registerEvents(new ChallengesEventListener(this), this);
 
         islandsWorld.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false);
         islandsWorld.setGameRule(GameRule.DO_MOB_SPAWNING, false);
@@ -69,7 +119,6 @@ public class OneBlockPlugin extends JavaPlugin {
         islandsWorld.setGameRule(GameRule.ANNOUNCE_ADVANCEMENTS, false);
         islandsWorld.setGameRule(GameRule.KEEP_INVENTORY, true);
         islandsWorld.setGameRule(GameRule.TNT_EXPLODES, false);
-//        islandsWorld.setGameRule(GameRule.MOB_EXPLOSION_DROP_DECAY, false);
         islandsWorld.setGameRule(GameRule.MOB_GRIEFING, false);
 
     }
@@ -104,6 +153,11 @@ public class OneBlockPlugin extends JavaPlugin {
         logger.info("Started saving islands");
         Islands.unloadAll();
         logger.info("Finished saving islands");
+
+        // Unload all island worlds created by IslandAllocator2
+        logger.info("Unloading all island worlds");
+        islandAllocator2.unloadAllWorlds();
+        logger.info("Finished unloading island worlds");
 
         storageProvider.shutdown();
     }
@@ -148,7 +202,7 @@ public class OneBlockPlugin extends JavaPlugin {
                 }
 
                 // Find the member by name
-                for (IslandMember member : island.getMembers()) {
+                for (IslandMember member : island.getCurrentMembers()) {
                     if (member.getId().getName().equalsIgnoreCase(memberName)) {
                         return member;
                     }
@@ -172,7 +226,7 @@ public class OneBlockPlugin extends JavaPlugin {
                 }
 
                 // Return list of member names
-                return island.getMembers().stream()
+                return island.getCurrentMembers().stream()
                     .map(member -> member.getId().getName())
                     .toList();
             }
@@ -181,6 +235,40 @@ public class OneBlockPlugin extends JavaPlugin {
 
         manager.registerCommand(new MiniCommands(this));
         manager.registerCommand(new IslandCommands(this));
+    }
+
+    private void loadTranslations() {
+        // Use a simpler key structure that matches your usage
+        final TranslationStore.StringBased<MessageFormat> store = TranslationStore.messageFormat(Key.key("floxyoneblock", "translations"));
+
+        // Register English as default/fallback
+        store.registerAll(Locale.ENGLISH, ResourceBundle.getBundle("translationfiles/quests", Locale.ENGLISH, UTF8ResourceBundleControl.get()), false);
+
+        // Register Croatian
+        store.registerAll(Locale.of("hr", "HR"), ResourceBundle.getBundle("translationfiles/quests", Locale.of("hr", "HR"), UTF8ResourceBundleControl.get()), false);
+
+        // Register Serbian locales to match your file naming
+        // sr_CS - Serbian Latin (corresponds to quests_sr_CS.properties)
+        Locale serbianLatin = Locale.of("sr", "CS");
+        store.registerAll(serbianLatin, ResourceBundle.getBundle("translationfiles/quests", serbianLatin, UTF8ResourceBundleControl.get()), false);
+
+        // sr_RS - Serbian  ali ovaj unused
+//        Locale serbianRS = Locale.of("sr", "RS");
+//        store.registerAll(serbianRS, ResourceBundle.getBundle("translationfiles/quests", serbianRS, UTF8ResourceBundleControl.get()), false);
+
+        // sr_SP - Serbian Cyrillic (corresponds to quests_sr_SP.properties)
+        Locale serbianCyrillic = Locale.of("sr", "SP");
+        store.registerAll(serbianCyrillic, ResourceBundle.getBundle("translationfiles/quests", serbianCyrillic, UTF8ResourceBundleControl.get()), false);
+
+        getLogger().info("Registered locales: en, hr_HR, sr_CS, sr_RS, sr_SP");
+
+        // Set English as default fallback
+        store.defaultLocale(Locale.ENGLISH);
+
+        GlobalTranslator.translator().addSource(store);
+
+        // Log some debug info
+        getLogger().info("Translation store registered with key: floxyoneblock:translations");
     }
 
     public User getUser(Player player) {
@@ -210,5 +298,4 @@ public class OneBlockPlugin extends JavaPlugin {
     public String serializeMiniMessage(Component c) {
         return mm.serialize(c);
     }
-
 }

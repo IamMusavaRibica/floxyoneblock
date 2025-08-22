@@ -1,13 +1,13 @@
 package dev.ribica.oneblockplugin.oneblock;
 
 import dev.ribica.oneblockplugin.OneBlockPlugin;
+import dev.ribica.oneblockplugin.challenges.types.MineSourceBlockChallenge;
 import dev.ribica.oneblockplugin.islands.Island;
 import dev.ribica.oneblockplugin.playerdata.User;
+import dev.ribica.oneblockplugin.quests.types.QuestPartMineSourceBlock0;
 import dev.ribica.oneblockplugin.util.WorldUtils;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
-import net.minecraft.server.commands.StopCommand;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
@@ -20,6 +20,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.ArrayList;
 import java.util.Random;
 
 /**
@@ -45,9 +46,13 @@ public class OneBlockListener implements Listener {
         Island island = plugin.getUser(player).getActiveIsland();
         Island current = plugin.getUser(player).getCurrentIsland();
         if (island != current) {
-            plugin.getLogger().warning(player.getName() + " broke a block on island " + island.getUuid() +
-                    " but their current island is " + (current != null ? current.getUuid() : null) + "!");
-            player.sendMessage(Component.text("Prebaci se na ovo ostrvo da kopaš tu! OVO NE SME NORMALNO DA SE DOGODI", TextColor.color(0xff7f00)));
+            if (current != null && current.hasMember(user.getUuid(), true)) {
+                plugin.getLogger().warning(player.getName() + " broke a block on island " + island.getUuid() +
+                        " but their current island is " + (current != null ? current.getUuid() : null) + "!");
+                player.sendMessage(Component.text("Prebaci se na ovo ostrvo da kopaš tu! OVO NE SME NORMALNO DA SE DOGODI", TextColor.color(0xff7f00)));
+            } else {
+                plugin.getLogger().warning(player.getName() + " pokusa da unistava blokove na necijem ostrvu, ali nije clan tog ostrva");
+            }
             event.setCancelled(true);
             return;
         }
@@ -76,18 +81,26 @@ public class OneBlockListener implements Listener {
             user.trackBlockMined(brokenType);
             island.trackBlockMined(player.getUniqueId(), player.getName(), brokenType);
 
-            Stage currentStage = island.getStage();
-            Material newMaterial = BlockWeights.getRandomBlock(currentStage);
+            int currentStageId = island.getCurrentStageId();
+            Material newMaterial = plugin.getStageManager().getRandomBlock(currentStageId);
 
             plugin.getServer().getScheduler().runTask(plugin, () -> {
-                // Set the new block
-                block.setType(newMaterial);
+                block.setType(newMaterial);   // TODO: use setBlockData
 
                 // Spawn cloud particles at the center of the block
                 Location particleLocation = block.getLocation().add(0.5, 0.5, 0.5);
                 world.spawnParticle(Particle.CLOUD, particleLocation, 5, 0.01, 0.01, 0.01, 0.1);
             });
+
+
+            // iterate over a copy because QuestPart#progress might trigger Quest#continueQuest
+            // and if it was the last part, it will modify activeQuests map!
+            new ArrayList<>(user.quests.getActiveQuests().values())
+                    .forEach(quest0 -> {
+                        if (quest0.getActivePart() instanceof QuestPartMineSourceBlock0 qp) {
+                            qp.progress(user);
+                        }
+                    });
         }
     }
 }
-

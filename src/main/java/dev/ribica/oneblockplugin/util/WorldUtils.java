@@ -11,28 +11,28 @@ import com.sk89q.worldedit.extent.clipboard.io.ClipboardWriter;
 import com.sk89q.worldedit.function.mask.ExistingBlockMask;
 import com.sk89q.worldedit.function.operation.ForwardExtentCopy;
 import com.sk89q.worldedit.function.operation.Operations;
-import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.session.ClipboardHolder;
 import com.sk89q.worldedit.world.World;
 import dev.ribica.oneblockplugin.OneBlockPlugin;
 import lombok.NonNull;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.entity.Entity;
 
 import java.io.*;
+import java.util.logging.Logger;
 
 public class WorldUtils {
+    private static final Logger log = Logger.getLogger(WorldUtils.class.getName());
+
     public static void fillBlockData(@NonNull org.bukkit.World world, @NonNull Region region, @NonNull BlockData blockData) {
         World we_world = BukkitAdapter.adapt(world);
         try (EditSession s = WorldEdit.getInstance().newEditSession(we_world)) {
             s.replaceBlocks(region, new ExistingBlockMask(we_world), BukkitAdapter.adapt(blockData));
         } catch (Exception e) {
-            e.printStackTrace();
+            log.severe("Failed to fill block data: " + e.getMessage());
         }
     }
 
@@ -45,7 +45,7 @@ public class WorldUtils {
         int x = location.getBlockX();
         int y = location.getBlockY();
         int z = location.getBlockZ();
-        OneBlockPlugin.getInstance().getLogger().info("Setting block at " + x + ", " + y + ", " + z + " to " + blockData);
+        log.info("Setting block at " + x + ", " + y + ", " + z + " to " + blockData);
         try (EditSession s = WorldEdit.getInstance().newEditSession(we_world)) {
             s.setBlock(x, y, z, BukkitAdapter.adapt(blockData));
         }
@@ -99,5 +99,32 @@ public class WorldUtils {
                loc1.getBlockY() == loc2.getBlockY() &&
                loc1.getBlockZ() == loc2.getBlockZ() &&
                loc1.getWorld().equals(loc2.getWorld());
+    }
+
+    public static void clearEntities(@NonNull org.bukkit.World world, @NonNull Region region) {
+        // Remove all non-player entities within the given region
+        int minX = region.getMinimumPoint().x();
+        int minY = region.getMinimumY();
+        int minZ = region.getMinimumPoint().z();
+        int maxX = region.getMaximumPoint().x();
+        int maxY = region.getMaximumY();
+        int maxZ = region.getMaximumPoint().z();
+
+        for (Entity entity : world.getEntities()) {
+            if (entity instanceof org.bukkit.entity.Player) continue;
+            Location loc = entity.getLocation();
+            int x = loc.getBlockX();
+            int y = loc.getBlockY();
+            int z = loc.getBlockZ();
+            if (x >= minX && x <= maxX && y >= minY && y <= maxY && z >= minZ && z <= maxZ) {
+                entity.remove();
+            }
+        }
+    }
+
+    public static org.bukkit.World newVoidWorld(@NonNull String worldName) {
+        var wc = new org.bukkit.WorldCreator(worldName);
+        wc.generator(new VoidChunkGenerator());
+        return wc.createWorld();
     }
 }
