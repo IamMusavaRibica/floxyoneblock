@@ -32,7 +32,7 @@ dependencies {
     implementation(platform("org.mongodb:mongodb-driver-bom:5.5.1"))
     implementation "org.mongodb:mongodb-driver-sync"
     implementation "com.github.luben:zstd-jni:1.5.7-3"
-    implementation 'com.github.stefvanschie.inventoryframework:IF:0.11.2'
+    implementation 'com.github.stefvanschie.inventoryframework:IF:0.11.3'
     implementation "co.aikar:acf-paper:0.5.1-SNAPSHOT"
     implementation(platform("com.intellectualsites.bom:bom-newest:1.52")) // Ref: https://github.com/IntellectualSites/bom
     compileOnly("com.fastasyncworldedit:FastAsyncWorldEdit-Core")
