@@ -6,28 +6,27 @@ import com.sk89q.worldedit.regions.CuboidRegion;
 import dev.ribica.oneblockplugin.OneBlockPlugin;
 import dev.ribica.oneblockplugin.oneblock.StageManager;
 import dev.ribica.oneblockplugin.playerdata.Islands;
-import dev.ribica.oneblockplugin.util.Compression;
-import dev.ribica.oneblockplugin.util.UUIDNamePair;
-import dev.ribica.oneblockplugin.util.WorldUtils;
+import dev.ribica.oneblockplugin.playerdata.User;
+import dev.ribica.oneblockplugin.quests.types.QuestPartMineSourceBlock0;
 import lombok.*;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Bukkit;
-import org.bukkit.Location;
-import org.bukkit.Material;
+import org.bukkit.*;
+import org.bukkit.block.Block;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
-import javax.annotation.Nullable;
 import java.util.*;
-import java.util.logging.Level;
 
 public class Island {
     private final OneBlockPlugin plugin;
     private final @Getter UUID uuid;
     private final @Getter IslandMember owner;  // Member representing the owner's stats - not stored in members map
     private Component name;
-    public final @Getter IslandMembers members;  // Public final field for direct access
+    public final IslandMembers members;
 
     private @Getter @Setter int currentStageId = 0;
     private @Getter @Setter int blocksMinedSinceLastStage = 0;
@@ -36,6 +35,7 @@ public class Island {
 
     private @Getter @Setter boolean unloaded = false;
     private @Getter volatile boolean obsolete = false;
+    private final Random random = new Random();
 
     public Island(@NonNull UUID uuid, @NonNull IslandMember owner, Component name) {
         this(uuid, owner, name, new Date());
@@ -65,7 +65,7 @@ public class Island {
     }
 
     public Location getSpawnLocation() {
-        return getOrigin().add(0.5, 1.00123, 0.5);
+        return getSourceBlockLocation().add(0.5, 1.00123, 0.5);
     }
 
     /**
@@ -78,12 +78,51 @@ public class Island {
         blocksMinedSinceLastStage++;
 
         // Check if it's the owner
-        IslandMember member = playerUuid.equals(owner.getId().getUuid()) ? owner : getMember(playerUuid);
+        IslandMember member = playerUuid.equals(owner.getId().getUuid()) ? owner : members.getMember(playerUuid);
         if (member == null) {
             plugin.getLogger().warning("Unknown player " + playerName + " (" + playerUuid + ") mined a block on island " + uuid);
             return;
         }
         member.trackBlockMined(material);
+    }
+
+    public void sourceBlockMined(User user, Block block, World world, BlockBreakEvent event) {
+        event.setCancelled(true); // Cancel normal drops
+
+        Player player = user.getPlayer();
+        Location blockLocation = block.getLocation();  // block location has whole numbers, not ##.5 decimals
+        // Get the drops from the broken block
+//            block.getType().asBlockType()
+        Material brokenType = block.getType();
+        for (ItemStack drop : block.getDrops(player.getInventory().getItemInMainHand())) {
+            // x = x0 + rand(0.3, 0.7),  y = y0 + 1.56, z = z0 + rand(0.3, 0.7)
+            double randX = blockLocation.getX() + 0.3 + (random.nextDouble() * 0.4);
+            double randZ = blockLocation.getZ() + 0.3 + (random.nextDouble() * 0.4);
+            Location dropLocation = new Location(world, randX, blockLocation.getY() + 1.56, randZ);
+            world.dropItemNaturally(dropLocation, drop);
+        }
+
+        // Record the mining statistics both for user and island
+        user.trackBlockMined(brokenType);
+        this.trackBlockMined(player.getUniqueId(), player.getName(), brokenType);
+
+        BlockData newBlockData = plugin.getStageManager().getRandomBlock(currentStageId);
+
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            block.setBlockData(newBlockData);
+            var particleLocation = block.getLocation().add(0.5, 0.5, 0.5);
+            world.spawnParticle(Particle.CLOUD, particleLocation, 5, 0.01, 0.01, 0.01, 0.1);
+        });
+
+
+        // iterate over a copy because QuestPart#progress might trigger Quest#continueQuest
+        // and if it was the last part, it will modify activeQuests map!
+        new ArrayList<>(user.quests.getActiveQuests().values())
+                .forEach(quest0 -> {
+                    if (quest0.getActivePart() instanceof QuestPartMineSourceBlock0 qp) {
+                        qp.progress(user);
+                    }
+                });
     }
 
     /**
@@ -149,12 +188,12 @@ public class Island {
         if (unloaded) {
             return false; // already unloaded
         }
-        Player ownerPlayer = Bukkit.getPlayer(owner.getId().getUuid());
+        var ownerPlayer = Bukkit.getPlayer(owner.getId().getUuid());
         if (ownerPlayer != null && ownerPlayer.isOnline() && plugin.getUser(ownerPlayer).getActiveIsland() == this) {
             return false;
         }
         for (IslandMember member : members.getAllMembers()) {
-            Player p = Bukkit.getPlayer(member.getUuid());
+            var p = Bukkit.getPlayer(member.getUuid());
             if (p != null && p.isOnline() && plugin.getUser(p).getActiveIsland() == this) {
                 return false;
             }
@@ -184,10 +223,6 @@ public class Island {
         return name != null;
     }
 
-    public void updateMemberPermissions(UUID memberUuid, int newPermissions) {
-        members.updatePermissions(memberUuid, newPermissions);
-    }
-
     public @NotNull Component getName() {
         if (name != null) {
             return name;
@@ -195,11 +230,7 @@ public class Island {
         return Component.text(owner.getId().getName() + "'s island", NamedTextColor.GRAY);
     }
 
-    public void addMember(@NonNull UUIDNamePair memberId, int permission, Date addedAt) {
-        members.addMember(memberId, permission, addedAt);
-    }
-
-    public Location getOrigin() {
+    public Location getSourceBlockLocation() {
         return plugin.getIslandAllocator2().getIslandOrigin(this);
     }
 
@@ -211,38 +242,13 @@ public class Island {
         // TODO: implement parameter `restricted` to return the maximum allowed region (determined by island upgrades, etc.)
         // right now, this returns the maximum allowed region
 
-        Location origin = getOrigin();
+        Location origin = getSourceBlockLocation();
         BlockVector3 min = BlockVector3.at(origin.x() - 75,   1, origin.z() - 75);
         BlockVector3 max = BlockVector3.at(origin.x() + 75, 128, origin.z() + 75);
         return new CuboidRegion(BukkitAdapter.adapt(origin.getWorld()), min, max);
     }
 
-    public @Nullable IslandMember getMember(@NonNull UUID memberUuid) {
-        return members.getMember(memberUuid);
-    }
-
-    public void removeMember(@NonNull UUID memberUuid) {
-        members.removeMember(memberUuid);
-    }
-
-    public void putMember(@NonNull IslandMember member) {
-        members.putMember(member);
-    }
-
-    public boolean hasMember(@NonNull UUID memberUuid, boolean mustBeCurrentMember) {
-        return members.hasMember(memberUuid, mustBeCurrentMember);
-    }
-
     public boolean isCurrentMemberOrOwner(@NonNull UUID memberUuid) {
-        return memberUuid.equals(owner.getUuid()) || hasMember(memberUuid, true);
-    }
-
-    public List<IslandMember> getCurrentMembers() {
-        return members.getCurrentMembers();
-    }
-
-    public List<IslandMember> getAllMembers() {
-        // i ovi koji imaju permissions == 0, bivši članovi čije podatke moramo čuvati
-        return members.getAllMembers();
+        return memberUuid.equals(owner.getUuid()) || members.hasMember(memberUuid, true);
     }
 }

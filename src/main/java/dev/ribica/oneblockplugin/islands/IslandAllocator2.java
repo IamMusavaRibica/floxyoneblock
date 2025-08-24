@@ -12,6 +12,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.*;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,6 +46,15 @@ public class IslandAllocator2 {
             }
         }
         return -1;
+    }
+
+    public Island getIslandByUUID(@NonNull UUID uuid) {
+        for (Island island : islandToWorldMapping.keySet()) {
+            if (island.getUuid().equals(uuid)) {
+                return island;
+            }
+        }
+        return null;
     }
 
     /**
@@ -193,11 +203,11 @@ public class IslandAllocator2 {
         return new Location(world, 0, ORIGIN_Y, 0);
     }
 
-    public World getIslandWorld(Island island) {
+    public @Nullable World getIslandWorld(@NonNull Island island) {
         return islandToWorldMapping.get(island);
     }
 
-    public Island getIslandForWorld(World world) {
+    public @Nullable Island getIslandForWorld(@NonNull World world) {
         return worldToIslandMapping.get(world);
     }
 
