@@ -28,7 +28,7 @@ import java.util.concurrent.CompletableFuture;
 
 @RequiredArgsConstructor
 public class User {
-    private final OneBlockPlugin plugin;
+    private @Getter final OneBlockPlugin plugin;  // TODO: expose plugin through User?
     private final @Getter UUID uuid;
     private @Getter Player player;
 
