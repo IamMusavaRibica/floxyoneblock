@@ -109,20 +109,10 @@ public class IslandMembers {
         return new ArrayList<>(members.values());
     }
 
-    /**
-     * Serializes all members to a list of Documents
-     * @return List of serialized member documents
-     */
     public List<Document> serialize() {
-        return getAllMembers().stream()
-                .map(IslandMember::serialize)
-                .toList();
+        return getAllMembers().stream().map(IslandMember::serialize).toList();
     }
 
-    /**
-     * Deserializes a list of member documents
-     * @param memberDocs List of member documents
-     */
     public void deserialize(List<Document> memberDocs) {
         memberDocs.forEach(memberDoc -> {
             IslandMember member = IslandMember.deserialize(memberDoc, island.getUuid());

@@ -204,6 +204,7 @@ public class MongoStorageProvider {
                         Updates.set("data.selected_profile", user.getActiveIsland().getUuid()),
                         Updates.set("data.collections", minedBlocksDoc),
                         Updates.set("data.quests", user.quests.serialize()),
+                        Updates.set("data.skills", user.skills.serialize()),
                         Updates.set("settings.challenge_bar", user.isWantsToSeeChallengeBar())
                 )
         );
@@ -260,6 +261,9 @@ public class MongoStorageProvider {
 
         Document questsDoc = data.get("quests", Document.class);
         user.loadQuests(questsDoc);
+
+        Document skillsDoc = data.get("skills", Document.class);
+        user.loadSkills(skillsDoc);
 
         Document minedBlocksDoc = data.get("collections", Document.class);
         parseMinedBlocks(minedBlocksDoc, user.getMinedBlocks());

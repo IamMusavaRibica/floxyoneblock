@@ -6,11 +6,9 @@ import lombok.RequiredArgsConstructor;
 import net.kyori.adventure.key.Key;
 import net.minecraft.nbt.StringTag;
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.persistence.PersistentDataType;
 
 @RequiredArgsConstructor
 public abstract class RawItem {
@@ -27,11 +25,13 @@ public abstract class RawItem {
         var base = ItemStack.of(Material.MUSIC_DISC_CREATOR_MUSIC_BOX);
         base.unsetData(DataComponentTypes.JUKEBOX_PLAYABLE);
         base.setData(DataComponentTypes.ITEM_MODEL, itemModel);
-
+        base.setData(DataComponentTypes.MAX_STACK_SIZE, this.getMaxStackSize());
+        System.out.println("Max stack size: " + this.getMaxStackSize() + " for " + id);
         Helpers.modifyCustomData(base, tag -> tag.put("id", StringTag.valueOf(id)));
 
         return base;
     }
 
+    public int getMaxStackSize() { return 1; }
     public void onInteract(PlayerInteractEvent event, Player player, ItemStack itemStack) {}
 }

@@ -8,6 +8,7 @@ import dev.ribica.oneblockplugin.OneBlockPlugin;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.bukkit.Material;
+import org.bukkit.block.data.BlockData;
 
 import java.io.File;
 import java.io.IOException;
@@ -55,10 +56,10 @@ public class StageManager {
      * @param stageId The stage ID
      * @return A random material from the stage, or STONE if stage not found
      */
-    public Material getRandomBlock(int stageId) {
+    public BlockData getRandomBlock(int stageId) {
         Stage stage = stages.get(stageId);
         if (stage == null || stage.blocks().isEmpty()) {
-            return Material.STONE; // fallback
+            return Material.STONE.createBlockData(); // fallback
         }
 
         int totalWeight = stage.blocks().stream().mapToInt(WeightedBlock::weight).sum();
@@ -68,12 +69,12 @@ public class StageManager {
         for (WeightedBlock weightedBlock : stage.blocks()) {
             currentWeight += weightedBlock.weight();
             if (randomValue < currentWeight) {
-                return weightedBlock.material();
+                return weightedBlock.material.createBlockData();
             }
         }
         plugin.getLogger().warning("No more weight in stage " + stageId + "!");
         // Fallback to first block if something goes wrong
-        return stage.blocks().getFirst().material();
+        return stage.blocks().getFirst().material.createBlockData();
     }
 
     /**

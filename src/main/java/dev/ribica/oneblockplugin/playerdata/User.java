@@ -5,6 +5,7 @@ import com.sk89q.worldedit.math.BlockVector3;
 import dev.ribica.oneblockplugin.OneBlockPlugin;
 import dev.ribica.oneblockplugin.islands.Island;
 import dev.ribica.oneblockplugin.quests.UserQuestsHolder;
+import dev.ribica.oneblockplugin.skills.UserSkillsHolder;
 import dev.ribica.oneblockplugin.util.StringUtils;
 import lombok.*;
 import net.kyori.adventure.bossbar.BossBar;
@@ -40,11 +41,12 @@ public class User {
     private @Getter List<UUID> profiles = new ArrayList<>();
 
     // Track mined blocks from the one block across all islands
-    private @Getter Map<Material, Integer> minedBlocks = new HashMap<>();
+    private final @Getter Map<Material, Integer> minedBlocks = new HashMap<>();
     private @Getter BossBar challengeBar = BossBar.bossBar(Component.empty(), 1.0f, BossBar.Color.WHITE, BossBar.Overlay.PROGRESS);
 
     private @Getter int level = 1;
     public UserQuestsHolder quests = null;
+    public UserSkillsHolder skills = null;
 
 
 
@@ -77,6 +79,12 @@ public class User {
 
 
 
+    protected void loadSkills(Document skillsDoc) {
+        if (skillsDoc == null) {
+            skillsDoc = new Document();
+        }
+        this.skills = UserSkillsHolder.deserialize(skillsDoc, this);
+    }
 
 
 
@@ -147,6 +155,7 @@ public class User {
     // Public method to track a mined block for this user
     public void trackBlockMined(Material material) {
         minedBlocks.put(material, minedBlocks.getOrDefault(material, 0) + 1);
+//        material.asBlockType()
     }
 
     protected void setPlayer(@NonNull Player player) {
@@ -219,9 +228,11 @@ public class User {
         if (player == null || !player.isOnline()) {
             return null;
         }
-        Location playerLoc = player.getLocation();
-
+        // musava_ribica: optimize this method
+        return plugin.getIslandAllocator2().getIslandForWorld(player.getWorld());
+        /*
         // Check all allocated islands to see if player is within bounds of any of them
+        Location playerLoc = player.getLocation();
         for (Island island : plugin.getIslandAllocator2().getForwardMapping().values()) {
             Location origin = island.getOrigin();
             if (origin == null || !playerLoc.getWorld().equals(origin.getWorld())) {
@@ -236,5 +247,6 @@ public class User {
             }
         }
         return null; // Player is not on any island
+        */
     }
 }

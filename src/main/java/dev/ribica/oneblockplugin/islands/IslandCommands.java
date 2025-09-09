@@ -7,10 +7,14 @@ import com.github.stefvanschie.inventoryframework.adventuresupport.ComponentHold
 import com.github.stefvanschie.inventoryframework.gui.GuiItem;
 import com.github.stefvanschie.inventoryframework.gui.type.ChestGui;
 import com.github.stefvanschie.inventoryframework.pane.OutlinePane;
+import com.github.stefvanschie.inventoryframework.pane.StaticPane;
 import dev.ribica.oneblockplugin.OneBlockPlugin;
 import dev.ribica.oneblockplugin.playerdata.User;
 import dev.ribica.oneblockplugin.util.UUIDNamePair;
+import io.papermc.paper.datacomponent.DataComponentTypes;
+import io.papermc.paper.datacomponent.item.CustomModelData;
 import lombok.RequiredArgsConstructor;
+import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
@@ -18,6 +22,7 @@ import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.ItemType;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.time.Instant;
@@ -64,11 +69,10 @@ public class IslandCommands extends BaseCommand {
             sender.sendMessage(Component.text("Moraš biti na svojem ostrvu.", NamedTextColor.RED));
         } else if (user == targetUser) {
             sender.sendMessage(Component.text("To si ti!", NamedTextColor.RED));
-            return;
-        } else if (island.hasMember(targetUser.getUuid(), true)) {
+        } else if (island.members.hasMember(targetUser.getUuid(), true)) {
             sender.sendMessage(Component.text("Igrač je već član tvojeg ostrva.", NamedTextColor.RED));
         } else {
-            island.addMember(UUIDNamePair.of(targetUser.getUuid()), 1, Date.from(Instant.now()));
+            island.members.addMember(UUIDNamePair.of(targetUser.getUuid()), 1, Date.from(Instant.now()));
             // Update the cached profiles list
             targetUser.getProfiles().add(island.getUuid());
 
@@ -90,7 +94,7 @@ public class IslandCommands extends BaseCommand {
 
         UUID memberUuid = target.getId().getUuid();
         String memberName = target.getId().getName();
-        island.removeMember(memberUuid);
+        island.members.removeMember(memberUuid);
         sender.sendMessage(Component.text(memberName + ", doviđenja", NamedTextColor.GREEN));
 
         plugin.getIslandRegionManager().updateMemberPermissions(island);
@@ -194,7 +198,7 @@ public class IslandCommands extends BaseCommand {
     public void is_members(User user, Island island) {
         Player player = user.getPlayer();
         player.sendMessage("Members of island " + island.getName() + ":");
-        island.getCurrentMembers().forEach(member -> {
+        island.members.getCurrentMembers().forEach(member -> {
             player.sendMessage("- " + member.getId().getName() + " (added at " + member.getAddedAt() + ")");
         });
     }
@@ -245,40 +249,42 @@ public class IslandCommands extends BaseCommand {
         }
     }
 
+    @SuppressWarnings({"UnstableApiUsage"})
     @Subcommand("stages")
     public void is_stages(User user, Island island) {
-        ChestGui gui = new ChestGui(4, ComponentHolder.of(Component.text("Island Stages")));
-
-    }
-
-    @Subcommand("stages2")
-    public void is_stages2(User user, Island island) {
         Player player = user.getPlayer();
         int currentStageId = island.getCurrentStageId();
         var allStages = plugin.getStageManager().getAllStages();
         int maxStage = allStages.size();
 
-        ChestGui gui = new ChestGui(3, "Island Stages");
-        OutlinePane pane = new OutlinePane(0, 0, 9, 3);
+        int[][] snake = new int[][] {{0, 0}, {1, 0}, {1, 1}, {1, 2}, {1, 3}, {2, 3},
+                {3, 3}, {3, 2}, {3, 1}, {3, 0}, {4, 0}, {5, 0},
+                {5, 1}, {5, 2}, {5, 3}, {6, 3}, {7, 3}, {7, 2},
+                {7, 1}, {7, 0}, {8, 0}};
 
-        for (int i = 0; i < maxStage; i++) {
+        ChestGui gui = new ChestGui(6, ComponentHolder.of(
+                Component.text("\uDAFF\uDFF8䵖", NamedTextColor.WHITE)
+        ));
+        StaticPane pane0 = new StaticPane(0, 2, 9,  6);
+        for (int i = 0; i < maxStage && i < 21; i++) {
             var stage = plugin.getStageManager().getStage(i);
-            if (stage == null) continue;
+            if (stage == null)
+                continue;
 
-            // Always show the actual stage icon and name
-            ItemStack icon = new ItemStack(stage.icon());
-            String name;
-            if (i == currentStageId) {
-                name = "<b>Stage " + i + ": " + stage.name() + "</b>";
-            } else {
-                name = "Stage " + i + ": " + stage.name();
-            }
+            int x = snake[i][0];
+            int y = snake[i][1];
+            String cmd =
+                    i == currentStageId ? "cyan" :
+                    i < currentStageId ? "white" : "gray";
 
-            GuiItem item = new GuiItem(icon);
-            icon.editMeta(meta -> meta.displayName(plugin.deserializeMiniMessage(name, true)));
-            pane.addItem(item);
+            ItemStack icon = new ItemStack(Material.ICE);
+            icon.editMeta(meta -> meta.displayName(plugin.deserializeMiniMessage(stage.name(), true)));
+            icon.setData(DataComponentTypes.ITEM_MODEL, Key.key("floxy", "outlined_number"));
+            icon.setData(DataComponentTypes.CUSTOM_MODEL_DATA, CustomModelData.customModelData().addString(cmd).addFloat(i*1f));
+            pane0.addItem(new GuiItem(icon), x, y);
         }
-        gui.addPane(pane);
+
+        gui.addPane(pane0);
         gui.setOnGlobalClick(event -> event.setCancelled(true));
         gui.show(player);
     }

@@ -1,12 +1,10 @@
 package dev.ribica.oneblockplugin.playerdata;
 
 import dev.ribica.oneblockplugin.OneBlockPlugin;
-import dev.ribica.oneblockplugin.islands.Island;
 import dev.ribica.oneblockplugin.util.UUIDNamePair;
 import io.papermc.paper.math.Rotation;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
-import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -131,7 +129,7 @@ public class PlayerJoinQuitListener implements Listener {
     @EventHandler
     public void onSpawn(PlayerSpawnLocationEvent event) {
         User user = plugin.getUser(event.getPlayer());
-        Location target = user.getActiveIsland().getOrigin().add(0.5, 1.00123, 0.5);
+        Location target = user.getActiveIsland().getSourceBlockLocation().add(0.5, 1.00123, 0.5);
         target.setRotation(Rotation.rotation(17.1f, 68.9f));
         // logger.info("Spawning " + event.getPlayer().getName() + " at " + target);
         event.setSpawnLocation(target);
@@ -140,7 +138,7 @@ public class PlayerJoinQuitListener implements Listener {
     @EventHandler
     public void onRespawn(PlayerRespawnEvent event) {
         User user = plugin.getUser(event.getPlayer());
-        Location target = user.getActiveIsland().getOrigin().add(0.5, 1.00123, 0.5);
+        Location target = user.getActiveIsland().getSourceBlockLocation().add(0.5, 1.00123, 0.5);
         target.setRotation(Rotation.rotation(17.1f, 68.9f));
         event.setRespawnLocation(target);
     }

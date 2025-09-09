@@ -6,8 +6,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.ItemStack;
-import org.checkerframework.checker.index.qual.SubstringIndexBottom;
 
 public class ItemsEventListener implements Listener {
     private final OneBlockPlugin plugin;
@@ -24,13 +22,11 @@ public class ItemsEventListener implements Listener {
 
         @SuppressWarnings("deprecation")
         var tag = Helpers.getNmsCustomDataComponent(item).getUnsafe().get("id");
-        if (!(tag instanceof StringTag tagS))
+        if (!(tag instanceof StringTag(String value)))
             return;
 
-        String itemId = tagS.value();
-
         // Get the corresponding RawItem from the registry
-        var rawItem = plugin.getItemRegistry().byId(itemId);
+        var rawItem = plugin.getItemRegistry().byId(value);
         if (rawItem == null) {
             // TODO: add custom behavior for items with the "id" tag but not registered??
             // This can be used for commodity items which don't have any special

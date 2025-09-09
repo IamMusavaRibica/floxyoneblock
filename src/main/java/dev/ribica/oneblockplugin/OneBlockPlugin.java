@@ -98,7 +98,6 @@ public class OneBlockPlugin extends JavaPlugin {
         islandAllocator2 = new IslandAllocator2(this);
 
         islandRegionManager = new IslandRegionManager(this, islandsWorld);
-        islandRegionManager.clearAllIslandRegions();
 
 
         // register items
@@ -202,7 +201,7 @@ public class OneBlockPlugin extends JavaPlugin {
                 }
 
                 // Find the member by name
-                for (IslandMember member : island.getCurrentMembers()) {
+                for (IslandMember member : island.members.getCurrentMembers()) {
                     if (member.getId().getName().equalsIgnoreCase(memberName)) {
                         return member;
                     }
@@ -226,7 +225,7 @@ public class OneBlockPlugin extends JavaPlugin {
                 }
 
                 // Return list of member names
-                return island.getCurrentMembers().stream()
+                return island.members.getCurrentMembers().stream()
                     .map(member -> member.getId().getName())
                     .toList();
             }

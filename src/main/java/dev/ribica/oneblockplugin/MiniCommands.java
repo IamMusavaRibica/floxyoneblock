@@ -13,6 +13,7 @@ import com.google.common.collect.HashMultimap;
 import com.sk89q.minecraft.util.commands.Command;
 import dev.ribica.oneblockplugin.items.RawItem;
 import dev.ribica.oneblockplugin.playerdata.User;
+import dev.ribica.oneblockplugin.skills.Skill;
 import dev.ribica.oneblockplugin.util.McTextUtils;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.PotionContents;
@@ -130,9 +131,9 @@ public class MiniCommands extends BaseCommand {
     }
 
     @CommandAlias("opencustomnamegui")
-    public void ocng(Player player, String base64) {
+    public void ocng(Player player, String base64, int rows) {
         String actualName = new String(Base64.getDecoder().decode(base64), StandardCharsets.UTF_8);
-        ChestGui chestGui = new ChestGui(6,
+        ChestGui chestGui = new ChestGui(rows,
                 ComponentHolder.of(Component.text(actualName, TextColor.color(0xffffff)))
         );
         chestGui.show(player);
@@ -157,6 +158,13 @@ public class MiniCommands extends BaseCommand {
         ));
         chestGui.show(player);
 //        Bukkit.getWorld()
+    }
+
+    @CommandAlias("giveskillxp")
+    public void gskxp(Player player, String skillName, long xp) {
+        var user = plugin.getUser(player);
+        var skill = Skill.valueOf(skillName.toUpperCase());
+        user.skills.addRawXp(skill, xp);
     }
 
     @CommandAlias("evaluate")
@@ -195,7 +203,7 @@ public class MiniCommands extends BaseCommand {
         for (RawItem item : items) {
             // Create an ItemStack for the GUI display
             ItemStack displayItem = item.newItemStack();
-
+//            displayItem.setAmount(item.getMaxStackSize());
             // Edit the item's metadata to show its ID
             displayItem.editMeta(meta -> {
                 // Keep the original display name if it exists

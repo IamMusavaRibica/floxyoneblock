@@ -1,6 +1,7 @@
 package dev.ribica.oneblockplugin.items.impl;
 
 import dev.ribica.oneblockplugin.items.RawItem;
+import lombok.Getter;
 import net.kyori.adventure.key.Key;
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -10,6 +11,8 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 
 public class FancyGold extends RawItem {
+    private final @Getter int maxStackSize = 7;
+
 
     public FancyGold() {
         super("fancy_gold", Key.key("minecraft:gold_nugget"));

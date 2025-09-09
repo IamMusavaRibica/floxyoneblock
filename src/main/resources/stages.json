@@ -104,6 +104,254 @@
         "LAPIS_ORE": 4,
         "COBWEB": 4
       }
+    },
+    {
+      "id": 4,
+      "name": "Pustinja",
+      "icon": "SAND",
+      "blocks": {
+        "SAND": 15,
+        "SANDSTONE": 10,
+        "CHISELED_SANDSTONE": 5,
+        "STONE": 8,
+        "COBBLESTONE": 8,
+        "TNT": 2,
+        "COAL_ORE": 5,
+        "COPPER_ORE": 5,
+        "IRON_ORE": 4,
+        "LAPIS_ORE": 4
+      }
+    },
+    {
+      "id": 5,
+      "name": "Rudnik",
+      "icon": "COBBLESTONE",
+      "blocks": {
+        "STONE": 25,
+        "INFESTED_STONE": 4,
+        "COBBLESTONE": 20,
+        "GRANITE": 7,
+        "ANDESITE": 7,
+        "DIORITE": 7,
+        "TUFF": 7,
+        "DRIPSTONE_BLOCK": 7,
+        "GRAVEL": 10,
+        "COAL_ORE": 3,
+        "COPPER_ORE": 3,
+        "IRON_ORE": 3,
+        "LAPIS_ORE": 3,
+        "REDSTONE_ORE": 3,
+        "GOLD_ORE": 2,
+        "EMERALD_ORE": 2,
+        "DIAMOND_ORE": 2,
+        "RAW_IRON_BLOCK": 2,
+        "RAW_GOLD_BLOCK": 2,
+        "RAW_COPPER_BLOCK": 2,
+        "COBWEB": 5,
+        "OAK_PLANKS": 5,
+        "OBSIDIAN": 1,
+        "BONE_BLOCK": 3
+      }
+    },
+    {
+      "id": 6,
+      "name": "Tamna šuma",
+      "icon": "DARK_OAK_LOG",
+      "blocks": {
+        "GRASS_BLOCK": 10,
+        "DIRT": 10,
+        "MYCELIUM": 10,
+        "COARSE_DIRT": 10,
+        "DARK_OAK_LOG": 5,
+        "DARK_OAK_LEAVES": 5,
+        "OAK_LOG": 5,
+        "OAK_LEAVES": 5,
+        "MUSHROOM_STEM": 5,
+        "BROWN_MUSHROOM_BLOCK": 5,
+        "RED_MUSHROOM_BLOCK": 5,
+        "AMETHYST_BLOCK": 5,
+        "AMETHYST_CLUSTER": 5,
+        "CALCITE": 5,
+        "TUFF": 5,
+        "COAL_ORE": 5,
+        "COPPER_ORE": 5,
+        "IRON_ORE": 4,
+        "GOLD_ORE": 4,
+        "PUMPKIN": 5,
+        "COBWEB": 5,
+        "PEARLESCENT_FROGLIGHT": 5
+      }
+    },
+    {
+      "id": 7,
+      "name": "Bleda šuma",
+      "icon": "PALE_OAK_LOG",
+      "blocks": {
+        "PALE_OAK_LOG": 5,
+        "PALE_OAK_LEAVES": 5,
+        "PALE_MOSS_BLOCK": 5,
+        "GRASS_BLOCK": 10,
+        "RESIN_BRICKS": 5,
+        "RESIN_BLOCK": 5,
+        "CREAKING_HEART": 5,
+        "COAL_ORE": 5,
+        "COPPER_ORE": 5,
+        "REDSTONE_ORE": 4,
+        "EMERALD_ORE": 4
+      }
+    },
+    {
+      "id": 8,
+      "name": "Džungla",
+      "icon": "JUNGLE_LOG",
+      "blocks": {
+        "JUNGLE_LOG": 5,
+        "JUNGLE_LEAVES": 5,
+        "BAMBOO_BLOCK": 5,
+        "MELON": 5,
+        "GRASS_BLOCK": 10,
+        "PODZOL": 10,
+        "COARSE_DIRT": 10,
+        "COAL_ORE": 5,
+        "GOLD_ORE": 4,
+        "REDSTONE_ORE": 4,
+        "DIAMOND_ORE": 3,
+        "STONE": 5,
+        "COBBLESTONE": 5,
+        "MOSSY_COBBLESTONE": 5,
+        "STONE_BRICKS": 5,
+        "CRACKED_STONE_BRICKS": 5,
+        "CHISELED_STONE_BRICKS": 5,
+        "MOSSY_STONE_BRICKS": 5,
+        "TERRACOTTA": 5,
+        "COBWEB": 3
+      }
+    },
+    {
+      "id": 9,
+      "name": "Planinski vrh",
+      "icon": "ICE",
+      "blocks": {
+        "GRASS_BLOCK": 10,
+        "ROOTED_DIRT": 10,
+        "COARSE_DIRT": 10,
+        "SNOW_BLOCK": 10,
+        "CALCITE": 5,
+        "ICE": 5,
+        "PACKED_ICE": 5,
+        "BLUE_ICE": 5,
+        "STONE": 5,
+        "COAL_ORE": 5,
+        "EMERALD_ORE": 4,
+        "IRON_ORE": 4,
+        "COPPER_ORE": 4
+      }
+    },
+    {
+      "id": 10,
+      "name": "Cvetna polja",
+      "icon": "FLOWERING_AZALEA_LEAVES",
+      "blocks": {
+        "GRASS_BLOCK": 10,
+        "MOSS_BLOCK": 10,
+        "FLOWERING_AZALEA": 5,
+        "CHERRY_LOG": 5,
+        "CHERRY_LEAVES": 5,
+        "STRIPPED_CHERRY_LOG": 5,
+        "SNIFFER_EGG": 2,
+        "HONEYCOMB_BLOCK": 5,
+        "HONEY_BLOCK": 5,
+        "BEE_NEST": 3
+      }
+    },
+    {
+      "id": 11,
+      "name": "Opaki okean",
+      "icon": "PRISMARINE",
+      "blocks": {
+        "PRISMARINE": 5,
+        "PRISMARINE_BRICKS": 5,
+        "DARK_PRISMARINE": 5,
+        "SEA_LANTERN": 5,
+        "GRAVEL": 10,
+        "STONE_BRICKS": 5,
+        "CHISELED_STONE_BRICKS": 5,
+        "TUBE_CORAL_BLOCK": 5,
+        "BRAIN_CORAL_BLOCK": 5,
+        "BUBBLE_CORAL_BLOCK": 5,
+        "FIRE_CORAL_BLOCK": 5,
+        "HORN_CORAL_BLOCK": 5,
+        "MAGMA_BLOCK": 5,
+        "SOUL_SAND": 5,
+        "BARREL": 5,
+        "DRIED_KELP_BLOCK": 5,
+        "SUSPICIOUS_GRAVEL": 5
+      }
+    },
+    {
+      "id": 12,
+      "name": "Podzmeni svet",
+      "icon": "NETHERRACK",
+      "blocks": {
+        "NETHERRACK": 15,
+        "GLOWSTONE": 10,
+        "SOUL_SAND": 10,
+        "SOUL_SOIL": 10,
+        "BASALT": 10,
+        "BLACKSTONE": 10,
+        "POLISHED_BLACKSTONE": 10,
+        "CRYING_OBSIDIAN": 5,
+        "MAGMA_BLOCK": 5,
+        "ANCIENT_DEBRIS": 1,
+        "NETHER_QUARTZ_ORE": 5,
+        "NETHER_GOLD_ORE": 5,
+        "GILDED_BLACKSTONE": 5,
+        "WARPED_NYLIUM": 5,
+        "CRIMSON_NYLIUM": 5,
+        "WARPED_STEM": 5,
+        "CRIMSON_STEM": 5,
+        "WARPED_WART_BLOCK": 5,
+        "CRIMSON_FUNGUS": 5,
+        "WARPED_FUNGUS": 5,
+        "SHROOMLIGHT": 5,
+        "NETHER_WART_BLOCK": 5
+      }
+    },
+    {
+      "id": 13,
+      "name": "Moja močvara",
+      "icon": "MANGROVE_LOG",
+      "blocks": {
+        "MANGROVE_LOG": 5,
+        "SLIME_BLOCK": 5,
+        "MUD": 10
+      }
+    },
+    {
+      "id": 14,
+      "name": "Bujna pećina",
+      "icon": "GLOW_LICHEN",
+      "blocks": {
+        "MOSS_BLOCK": 10,
+        "GLOW_LICHEN": 10,
+        "VINE": 10,
+        "AZALEA": 5,
+        "FLOWERING_AZALEA": 5,
+        "DRIPSTONE_BLOCK": 5,
+        "POINTED_DRIPSTONE": 5,
+        "CALCITE": 5,
+        "AMETHYST_BLOCK": 5,
+        "AMETHYST_CLUSTER": 5,
+        "BUDDING_AMETHYST": 5,
+        "COPPER_ORE": 5,
+        "IRON_ORE": 4,
+        "LAPIS_ORE": 4,
+        "COBWEB": 4
+      }
+    },
+    {
+      "id": 15,
+      "name":
     }
   ]
 }
