@@ -7,11 +7,15 @@ import dev.ribica.oneblockplugin.challenges.ChallengesEventListener;
 import dev.ribica.oneblockplugin.islands.*;
 import dev.ribica.oneblockplugin.items.ItemRegistry;
 import dev.ribica.oneblockplugin.items.ItemsEventListener;
+import dev.ribica.oneblockplugin.items.eco.Coin;
+import dev.ribica.oneblockplugin.items.eco.CoinConversionListener;
+import dev.ribica.oneblockplugin.items.eco.CoinType;
 import dev.ribica.oneblockplugin.items.impl.FancyGold;
 import dev.ribica.oneblockplugin.oneblock.OneBlockListener;
 import dev.ribica.oneblockplugin.oneblock.StageManager;
 import dev.ribica.oneblockplugin.playerdata.*;
 import dev.ribica.oneblockplugin.quests.QuestsManager;
+import dev.ribica.oneblockplugin.skills.SkillsBossBarManager;
 import lombok.Getter;
 import lombok.Setter;
 import net.kyori.adventure.key.Key;
@@ -52,6 +56,7 @@ public class OneBlockPlugin extends JavaPlugin {
     private @Getter ChallengeConfigManager challengeConfigManager;
     private @Getter StageManager stageManager;
     private @Getter QuestsManager questsManager;
+    private @Getter SkillsBossBarManager bossBarManager;
 
     private @Getter @Setter boolean stopping = false;
 
@@ -72,6 +77,8 @@ public class OneBlockPlugin extends JavaPlugin {
         fakeBeaconRenderer.start();
         klyBeaconRenderer = new KlyBeaconRenderer(this);
         klyBeaconRenderer.start();
+
+        bossBarManager = new SkillsBossBarManager(this);
 
         // Initialize challenge configuration first
         challengeConfigManager = new ChallengeConfigManager(this);
@@ -104,6 +111,13 @@ public class OneBlockPlugin extends JavaPlugin {
         itemRegistry = new ItemRegistry(this);
         new ItemsEventListener(this);
         itemRegistry.registerItem(new FancyGold());
+
+
+        new CoinConversionListener(this); // Add this line
+        for (var type : CoinType.values()) {
+            itemRegistry.registerItem(new Coin(type));
+        }
+
 
 
         getServer().getPluginManager().registerEvents(new OneBlockListener(this), this);
@@ -284,6 +298,10 @@ public class OneBlockPlugin extends JavaPlugin {
 
     public BukkitTask runTaskAsync(Runnable runnable) {
         return getServer().getScheduler().runTaskAsynchronously(this, runnable);
+    }
+
+    public BukkitTask runTaskLater(Runnable runnable, long delayTicks) {
+        return getServer().getScheduler().runTaskLater(this, runnable, delayTicks);
     }
 
     public Component deserializeMiniMessage(String s, boolean disallowDefaultItalic) {
