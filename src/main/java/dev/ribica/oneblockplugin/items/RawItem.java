@@ -26,7 +26,6 @@ public abstract class RawItem {
         base.unsetData(DataComponentTypes.JUKEBOX_PLAYABLE);
         base.setData(DataComponentTypes.ITEM_MODEL, itemModel);
         base.setData(DataComponentTypes.MAX_STACK_SIZE, this.getMaxStackSize());
-        System.out.println("Max stack size: " + this.getMaxStackSize() + " for " + id);
         Helpers.modifyCustomData(base, tag -> tag.put("id", StringTag.valueOf(id)));
 
         return base;
