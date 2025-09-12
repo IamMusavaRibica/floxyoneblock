@@ -3,10 +3,7 @@ package dev.ribica.oneblockplugin.items;
 import dev.ribica.oneblockplugin.OneBlockPlugin;
 import lombok.RequiredArgsConstructor;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 @RequiredArgsConstructor
 public class ItemRegistry {
@@ -28,5 +25,23 @@ public class ItemRegistry {
 
     public RawItem byId(String id) {
         return itemMap.get(id.toLowerCase());
+    }
+
+    public Optional<RawItem> fromItemStack(org.bukkit.inventory.ItemStack itemStack) {
+        if (itemStack == null)
+            return Optional.empty();
+
+        try {
+            @SuppressWarnings("deprecation")
+            var tag = Helpers.getNmsCustomDataComponent(itemStack).getUnsafe().get("id");
+            if (!(tag instanceof net.minecraft.nbt.StringTag(String value)))
+                return Optional.empty();
+
+            return Optional.ofNullable(byId(value));
+        } catch (Exception e) {
+            // Return null if any exception occurs during the conversion process
+            plugin.getLogger().warning("Error converting ItemStack to RawItem: " + e.getMessage() + " ItemStack: " + itemStack);
+            return Optional.empty();
+        }
     }
 }
