@@ -2,23 +2,22 @@ package dev.ribica.oneblockplugin.skills;
 
 import dev.ribica.oneblockplugin.util.Bisect;
 import lombok.Getter;
-import org.bukkit.boss.BarColor;
-import org.enginehub.linbus.stream.token.LinToken;
+import net.kyori.adventure.bossbar.BossBar;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public enum Skill {
-    MINING(0, "mining", BarColor.PURPLE),
-    FARMING(1, "farming", BarColor.GREEN),
-    FISHING(2, "fishing", BarColor.BLUE);
+    MINING(0, "mining", BossBar.Color.PURPLE),
+    FARMING(1, "farming", BossBar.Color.GREEN),
+    FISHING(2, "fishing", BossBar.Color.BLUE);
 
     public static final int MAX_LEVEL = 100;
     private final static Map<Integer, Skill> skillMap = new HashMap<>();
     private final long[] totalXpForLevel = new long[MAX_LEVEL + 1];
     private final @Getter int id;
     private final @Getter String name;
-    private final @Getter BarColor barColor;
+    private final @Getter BossBar.Color barColor;
 
     static {
         for (Skill skill : Skill.values()) { skillMap.put(skill.getId(), skill); }
@@ -28,7 +27,7 @@ public enum Skill {
         return skillMap.get(id);
     }
 
-    Skill(int id, String strId, BarColor barColor) {
+    Skill(int id, String strId, BossBar.Color barColor) {
         this.id = id;
         this.name = strId;
         this.barColor = barColor;
@@ -40,8 +39,14 @@ public enum Skill {
         }
     }
 
-    public long getXpRequiredForLevel(int level) {
+    public long getTotalXpRequiredForLevel(int level) {
         return this.totalXpForLevel[level];
+    }
+
+    public long getXpForNextLevel(int currentLevel) {
+        if (currentLevel >= MAX_LEVEL)
+            return Long.MAX_VALUE;
+        return this.totalXpForLevel[currentLevel + 1] - this.totalXpForLevel[currentLevel];
     }
 
     public int getLevel(long xp) {

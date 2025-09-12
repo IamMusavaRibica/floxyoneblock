@@ -2,15 +2,12 @@ package dev.ribica.oneblockplugin.skills;
 
 import dev.ribica.oneblockplugin.OneBlockPlugin;
 import dev.ribica.oneblockplugin.playerdata.User;
-import dev.ribica.oneblockplugin.quests.Quest;
-import dev.ribica.oneblockplugin.quests.UserQuestsHolder;
-import lombok.RequiredArgsConstructor;
 import org.bson.Document;
 import org.bukkit.Bukkit;
+import org.bukkit.event.Event;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.logging.Logger;
 
 public class UserSkillsHolder {
@@ -36,7 +33,15 @@ public class UserSkillsHolder {
     }
 
     public void addRawXp(Skill skill, long xpAmount) {
-        this.skillsXp.merge(skill, xpAmount, Math::addExact);
+        int currentLevel = this.getLevel(skill);
+        long skillUpToCurrentLevel = skill.getTotalXpRequiredForLevel(currentLevel);
+
+        long xpBefore = this.getTotalXp(skill) - skillUpToCurrentLevel;
+        long xpAfter = this.skillsXp.merge(skill, xpAmount, Math::addExact) - skillUpToCurrentLevel;
+
+        long xpDelta = skill.getXpForNextLevel(currentLevel);
+
+        OneBlockPlugin.getInstance().getBossBarManager().sendUpdate(user.getPlayer(), skill, currentLevel, xpBefore, xpAfter, xpDelta);
         checkLevelUp(skill, false);
     }
 
@@ -46,7 +51,8 @@ public class UserSkillsHolder {
             return;
 
         long currentXp = this.getTotalXp(skill);
-        long nextLevelXp = skill.getXpRequiredForLevel(oldLevel + 1);
+        long nextLevelXp = skill.getTotalXpRequiredForLevel(oldLevel + 1);
+
         if (currentXp >= nextLevelXp) {
             this.levelUp(skill, silent);
 
@@ -58,6 +64,12 @@ public class UserSkillsHolder {
     private void levelUp(Skill skill, boolean silent) {
         int newLevel = this.getLevel(skill) + 1;
         this.skillLevels.put(skill, newLevel);
+
+        OneBlockPlugin.getInstance().getBossBarManager().sendUpdate(
+                user.getPlayer(), skill, newLevel,
+                0, this.getTotalXp(skill) - skill.getTotalXpRequiredForLevel(newLevel),
+                skill.getXpForNextLevel(newLevel)
+        );
 
         user.getPlayer().sendMessage("You leveled up " + skill.getName() + " to level " + newLevel + "; silent: " + silent);
     }
