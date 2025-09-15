@@ -16,6 +16,7 @@ import dev.ribica.oneblockplugin.oneblock.StageManager;
 import dev.ribica.oneblockplugin.playerdata.*;
 import dev.ribica.oneblockplugin.quests.QuestsManager;
 import dev.ribica.oneblockplugin.skills.SkillsBossBarManager;
+import dev.ribica.oneblockplugin.util.Zip;
 import lombok.Getter;
 import lombok.Setter;
 import net.kyori.adventure.key.Key;
@@ -25,14 +26,16 @@ import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.translation.GlobalTranslator;
 import net.kyori.adventure.translation.TranslationStore;
 import net.kyori.adventure.util.UTF8ResourceBundleControl;
-import org.bukkit.GameRule;
-import org.bukkit.Location;
-import org.bukkit.World;
+import org.apache.commons.io.FileUtils;
+import org.bukkit.*;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
 import javax.annotation.Nullable;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.text.MessageFormat;
 import java.util.Collections;
 import java.util.Locale;
@@ -66,10 +69,14 @@ public class OneBlockPlugin extends JavaPlugin {
     private @Getter ItemRegistry itemRegistry;
 
 
+    private boolean successfullyEnabled = false;
+
     @Override
     public void onEnable() {
         instance = this;
         logger = getLogger();
+
+        prepareHubWorld();
 
         loadTranslations();
 
@@ -134,10 +141,16 @@ public class OneBlockPlugin extends JavaPlugin {
         islandsWorld.setGameRule(GameRule.TNT_EXPLODES, false);
         islandsWorld.setGameRule(GameRule.MOB_GRIEFING, false);
 
+        successfullyEnabled = true;
     }
 
     @Override
     public void onDisable() {
+        if (!successfullyEnabled) {
+            logger.warning("Plugin onEnable failed, therefore skipping onDisable.");
+            return;
+        }
+
         logger.info("Kicking all players and saving data synchronously");
         Component kickMessage = Component.text("Server is restarting or shutting down");
 
@@ -282,6 +295,35 @@ public class OneBlockPlugin extends JavaPlugin {
 
         // Log some debug info
         getLogger().info("Translation store registered with key: floxyoneblock:translations");
+    }
+
+    private void prepareHubWorld() {
+        // create a fresh new hub world from the zip
+        File worldFolder = this.getServer().getWorldContainer();
+        File hubFolder = new File(worldFolder, "hub");
+        try {
+            FileUtils.deleteDirectory(hubFolder);
+            Zip.unzip(
+                    new File(worldFolder, "OneBlockWorld.zip").toPath(),
+                    hubFolder.toPath()
+            );
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        World hubWorld = this.getServer().createWorld(new WorldCreator(new NamespacedKey("floxy", "hub")));
+        if (hubWorld == null) {
+            logger.severe("Failed to create hub world!");
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+        hubWorld.setGameRule(GameRule.ANNOUNCE_ADVANCEMENTS, false);
+        hubWorld.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false);
+        hubWorld.setGameRule(GameRule.DO_MOB_SPAWNING, false);
+        hubWorld.setGameRule(GameRule.DO_WEATHER_CYCLE, false);
+        hubWorld.setGameRule(GameRule.KEEP_INVENTORY, true);
+        hubWorld.setGameRule(GameRule.TNT_EXPLODES, false);
+        hubWorld.setGameRule(GameRule.MOB_GRIEFING, false);
+        hubWorld.setGameRule(GameRule.DO_TRADER_SPAWNING, false);
     }
 
     public User getUser(Player player) {
