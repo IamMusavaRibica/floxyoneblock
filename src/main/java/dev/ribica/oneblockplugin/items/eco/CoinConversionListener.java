@@ -1,7 +1,10 @@
 package dev.ribica.oneblockplugin.items.eco;
 
 import dev.ribica.oneblockplugin.OneBlockPlugin;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -10,9 +13,7 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.EnumMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 
 public class CoinConversionListener implements Listener {
@@ -57,61 +58,122 @@ public class CoinConversionListener implements Listener {
     private void convertCoins(Player player) {
         long start = System.currentTimeMillis();
 
-        Map<CoinType, Integer> coinCounts = new EnumMap<>(CoinType.class);
+        Map<CoinType, List<CoinSlot>> coinSlotsByType = new EnumMap<>(CoinType.class);
         for (var type : CoinType.values()) {
-            coinCounts.put(type, 0);
+            coinSlotsByType.put(type, new ArrayList<>());
         }
 
-        // count all coins in inventory and remove them
+        // scan inventory to find all coin slots
         var inventory = player.getInventory();
         for (int s = 0; s < inventory.getSize(); s++) {
             int slot = s;
-            var itemStack = inventory.getItem(slot);
-            this.asCoin(itemStack).ifPresent(item -> {
-                assert itemStack != null;  // ensured by ItemRegistry#fromItemStack
-                var coinType = item.getCoinType();
-                coinCounts.put(coinType, coinCounts.get(coinType) + itemStack.getAmount());
-                inventory.setItem(slot, null);
+            var itemStack = inventory.getItem(s);
+            asCoin(itemStack).ifPresent(coin -> {
+                CoinType type = coin.getCoinType();
+                //noinspection DataFlowIssue
+                coinSlotsByType.get(type).add(new CoinSlot(slot, itemStack.getAmount()));
             });
         }
 
-        // convert coins to higher denominations
-        for (var type : CoinType.values()) {
-            int count = coinCounts.get(type);
-            var higher = type.getHigherTier();
-            int rate = 100;   // we could add type.getConversionRate()
-            if (count >= 100 && higher != null) {
-                int conversions = count / 100;
-                int remainder = count % 100;
+        // process conversions starting from the lowest tier
+        // UNTESTED CODE!
+        boolean madeConversion;
+        do {
+            madeConversion = false;
 
-                coinCounts.put(type, remainder);
-                coinCounts.put(higher, coinCounts.get(higher) + conversions);
+            for (CoinType type : CoinType.values()) {
+                if (type.getHigherTier() == null) continue; // Skip highest tier
+
+                CoinType higherType = type.getHigherTier();
+                List<CoinSlot> slots = coinSlotsByType.get(type);
+
+                // Count total coins of this type
+                int totalCoins = slots.stream().mapToInt(CoinSlot::getAmount).sum();
+
+                // Check if conversion is needed
+                if (totalCoins >= 100) {
+                    int conversions = totalCoins / 100;
+                    int remainder = totalCoins % 100;
+
+                    // Clear all slots of this type
+                    for (CoinSlot slot : slots) {
+                        inventory.setItem(slot.getSlot(), null);
+                    }
+
+                    // Add back the remainder coins to the first available slot
+                    if (remainder > 0 && !slots.isEmpty()) {
+                        Coin coin = (Coin) plugin.getItemRegistry().byId(type.getId());
+                        ItemStack stack = coin.newItemStack();
+                        stack.setAmount(remainder);
+                        inventory.setItem(slots.getFirst().getSlot(), stack);
+
+                        // Update the slot information
+                        slots.getFirst().setAmount(remainder);
+                        // Remove all other slots
+                        if (slots.size() > 1) {
+                            slots.subList(1, slots.size()).clear();
+                        }
+                    } else {
+                        // No remainder, clear all slots
+                        slots.clear();
+                    }
+
+                    // Handle the higher tier coins
+                    List<CoinSlot> higherSlots = coinSlotsByType.get(higherType);
+                    Coin higherCoin = (Coin) plugin.getItemRegistry().byId(higherType.getId());
+                    int maxStackSize = higherCoin.getMaxStackSize();
+
+                    // Try to add to existing higher tier slots first
+                    for (CoinSlot higherSlot : new ArrayList<>(higherSlots)) {
+                        int currentAmount = higherSlot.getAmount();
+                        int spaceAvailable = maxStackSize - currentAmount;
+
+                        if (spaceAvailable > 0) {
+                            int toAdd = Math.min(conversions, spaceAvailable);
+                            ItemStack stack = inventory.getItem(higherSlot.getSlot());
+                            //noinspection DataFlowIssue
+                            stack.setAmount(currentAmount + toAdd);
+                            higherSlot.setAmount(currentAmount + toAdd);
+                            conversions -= toAdd;
+
+                            if (conversions == 0) break;
+                        }
+                    }
+
+                    // If we still have conversions to add, create new stacks
+                    while (conversions > 0) {
+                        int amount = Math.min(conversions, maxStackSize);
+                        ItemStack stack = higherCoin.newItemStack();
+                        stack.setAmount(amount);
+
+                        // Find first empty slot
+                        int emptySlot = inventory.firstEmpty();
+                        if (emptySlot != -1) {
+                            inventory.setItem(emptySlot, stack);
+                            higherSlots.add(new CoinSlot(emptySlot, amount));
+                            conversions -= amount;
+                        } else {
+                            // Inventory is full, drop the item
+                            player.getWorld().dropItem(player.getLocation(), stack);
+                            conversions -= amount;
+                        }
+                    }
+
+                    madeConversion = true;
+                    player.sendMessage("§6Converted coins to " + higherType.getId().replace("_coin", "").substring(0, 1).toUpperCase() +
+                            higherType.getId().replace("_coin", "").substring(1) + " Coins!");
+                }
             }
-        }
-
-        // add back to inventory
-        for (var type : CoinType.values()) {
-            int count = coinCounts.get(type);
-            assert count >= 0;
-
-            var coinItem = (Coin) plugin.getItemRegistry().byId(type.getId());
-            int MAX_STACK_SIZE = coinItem.getMaxStackSize();
-
-            while (count > MAX_STACK_SIZE) {
-                ItemStack stack = coinItem.newItemStack();
-                stack.setAmount(MAX_STACK_SIZE);
-                inventory.addItem(stack);
-                count -= MAX_STACK_SIZE;
-            }
-
-            if (count > 0) {
-                ItemStack stack = coinItem.newItemStack();
-                stack.setAmount(count);
-                inventory.addItem(stack);
-            }
-        }
+        } while (madeConversion);
 
         long end = System.currentTimeMillis();
-        plugin.getLogger().info("Converted coins for player " + player.getName() + " in " + (end - start) + " ms");
+        plugin.getLogger().info("Processed coins for player " + player.getName() + " in " + (end - start) + " ms");
+    }
+
+    @Getter @Setter
+    @AllArgsConstructor
+    private static class CoinSlot {
+        private final int slot;
+        private int amount;
     }
 }
