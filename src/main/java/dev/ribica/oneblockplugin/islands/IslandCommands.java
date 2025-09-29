@@ -42,7 +42,13 @@ public class IslandCommands extends BaseCommand {
     @Default
     @Description("Sve o ostrvima!")
     public void is(User user, Island island) {
-        user.getPlayer().sendMessage("Welcome /is " + island.getUuid());
+        var current = user.getCurrentIsland();
+        if (current != island) {
+            // teleport user to his island
+            user.getPlayer().teleport(island.getSpawnLocation());
+        } else {
+            user.getPlayer().sendMessage(Component.text("You are already on your island", NamedTextColor.RED));
+        }
     }
 
 //    @CommandAlias("progresschallenge")
@@ -210,7 +216,7 @@ public class IslandCommands extends BaseCommand {
 
         // Check if the user is on their own island
         if (!user.isOnOwnedIsland()) {
-            player.sendMessage(Component.text("Moraš biti na svom ostrvu da napredujеš kroz nivoe.", NamedTextColor.RED));
+            player.sendMessage(Component.translatable("stages.advance.not-on-owned-island", NamedTextColor.RED));
             return;
         }
 
@@ -222,12 +228,15 @@ public class IslandCommands extends BaseCommand {
         // Get stage information
         var stageManager = plugin.getStageManager();
         var currentStageInfo = stageManager.getStage(currentStage);
-        String currentStageName = currentStageInfo != null ? currentStageInfo.name() : "Nepoznat";
+        String currentStageName = currentStageInfo != null ? currentStageInfo.name() : "???";
 
         if (blocksNeeded > 0) {
-            player.sendMessage(Component.text("Potrebno je da iskopaš još " + blocksNeeded + " blokova da napredujеš na sledeći nivo.", NamedTextColor.RED));
-            player.sendMessage(Component.text("Trenutni nivo: " + currentStageName + " (ID: " + currentStage + ")", NamedTextColor.GRAY));
-            player.sendMessage(Component.text("Iskopao si: " + blocksMinedSinceLastStage + " blokova", NamedTextColor.GRAY));
+            player.sendMessage(Component.translatable("stages.advance.need-more-blocks", NamedTextColor.RED, Component.text(blocksNeeded)));
+            player.sendMessage(Component.translatable("stages.advance.current-stage", NamedTextColor.GRAY,
+                    Component.text(currentStageName),
+                    Component.text(currentStage)
+            ));
+            player.sendMessage(Component.translatable("stages.advance.current-progress", NamedTextColor.GRAY, Component.text(blocksMinedSinceLastStage)));
             return;
         }
 
@@ -236,16 +245,16 @@ public class IslandCommands extends BaseCommand {
         if (success) {
             int newStage = island.getCurrentStageId();
             var newStageInfo = stageManager.getStage(newStage);
-            String newStageName = newStageInfo != null ? newStageInfo.name() : "Nepoznat";
+            String newStageName = newStageInfo != null ? newStageInfo.name() : "???";
 
-            player.sendMessage(Component.text("Čestitamo! Napredovao si na nivo: " + newStageName + " (ID: " + newStage + ")", NamedTextColor.GREEN));
+            player.sendMessage(Component.text("Congratulations, you are now stage " + newStageName + " (ID: " + newStage + ")", NamedTextColor.GREEN));
 
             // Special message if cycled back to stage 1
             if (newStage == 1 && currentStage > 1) {
-                player.sendMessage(Component.text("Završio si sve nivoe i vratio si se na početak ciklusa!", NamedTextColor.GOLD));
+                player.sendMessage(Component.text("You finished all stages and returned to the beginning!", NamedTextColor.GOLD));
             }
         } else {
-            player.sendMessage(Component.text("Došlo je do greške pri napredovanju nivoa.", NamedTextColor.RED));
+            player.sendMessage(Component.text("There was an error while advancing stage.", NamedTextColor.RED));
         }
     }
 
@@ -263,7 +272,8 @@ public class IslandCommands extends BaseCommand {
                 {7, 1}, {7, 0}, {8, 0}};
 
         ChestGui gui = new ChestGui(6, ComponentHolder.of(
-                Component.text("\uDAFF\uDFF8䵖", NamedTextColor.WHITE)
+                Component.text("Island Stages")
+//                Component.text("\uDAFF\uDFF8䵖", NamedTextColor.WHITE)  TODO: custom gui
         ));
         StaticPane pane0 = new StaticPane(0, 2, 9,  6);
         for (int i = 0; i < maxStage && i < 21; i++) {

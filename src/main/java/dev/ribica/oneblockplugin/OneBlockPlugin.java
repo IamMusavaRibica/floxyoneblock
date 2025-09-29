@@ -10,12 +10,19 @@ import dev.ribica.oneblockplugin.items.ItemsEventListener;
 import dev.ribica.oneblockplugin.items.eco.Coin;
 import dev.ribica.oneblockplugin.items.eco.CoinConversionListener;
 import dev.ribica.oneblockplugin.items.eco.CoinType;
+import dev.ribica.oneblockplugin.items.impl.EmeraldSword;
 import dev.ribica.oneblockplugin.items.impl.FancyGold;
+import dev.ribica.oneblockplugin.items.impl.NethemeraldSword;
+import dev.ribica.oneblockplugin.items.recipes.QuickRecipe;
+import dev.ribica.oneblockplugin.items.recipes.QuickRecipeBook;
+import dev.ribica.oneblockplugin.items.recipes.QuickRecipesListener;
 import dev.ribica.oneblockplugin.oneblock.OneBlockListener;
 import dev.ribica.oneblockplugin.oneblock.StageManager;
 import dev.ribica.oneblockplugin.playerdata.*;
 import dev.ribica.oneblockplugin.quests.QuestsManager;
 import dev.ribica.oneblockplugin.skills.SkillsBossBarManager;
+import dev.ribica.oneblockplugin.stats.StatsService;
+import dev.ribica.oneblockplugin.util.VoidChunkGenerator;
 import dev.ribica.oneblockplugin.util.Zip;
 import lombok.Getter;
 import lombok.Setter;
@@ -31,6 +38,7 @@ import org.bukkit.*;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
+import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nullable;
 import java.io.File;
@@ -52,6 +60,7 @@ public class OneBlockPlugin extends JavaPlugin {
     private @Getter long currentTick = 0;
     private @Getter UserManager userManager;
     private @Getter MongoStorageProvider storageProvider;
+    private @Getter World hubWorld;
 
     private @Getter IslandAllocator2 islandAllocator2;
 
@@ -67,7 +76,7 @@ public class OneBlockPlugin extends JavaPlugin {
     private @Getter FakeBeaconRenderer fakeBeaconRenderer;
     private @Getter KlyBeaconRenderer klyBeaconRenderer;
     private @Getter ItemRegistry itemRegistry;
-
+    private @Getter StatsService statsService;
 
     private boolean successfullyEnabled = false;
 
@@ -99,31 +108,57 @@ public class OneBlockPlugin extends JavaPlugin {
         getServer().getScheduler().runTaskTimer(this, () -> currentTick++, 0L, 1L);
         registerAikarCommands();
 
-        World islandsWorld = getServer().getWorld("world");
-        if (islandsWorld == null) {
-            logger.severe("World 'world' not found!");
-            getServer().getPluginManager().disablePlugin(this);
-            return;
-        }
         userManager = new UserManager(this);
         storageProvider = new MongoStorageProvider(this);
         storageProvider.startAutoSaving();
 
         islandAllocator2 = new IslandAllocator2(this);
 
-        islandRegionManager = new IslandRegionManager(this, islandsWorld);
+        islandRegionManager = new IslandRegionManager(this);
 
 
         // register items
         itemRegistry = new ItemRegistry(this);
         new ItemsEventListener(this);
         itemRegistry.registerItem(new FancyGold());
+        itemRegistry.registerItem(new EmeraldSword());
+        itemRegistry.registerItem(new NethemeraldSword());
 
 
-        new CoinConversionListener(this); // Add this line
+        new CoinConversionListener(this);
         for (var type : CoinType.values()) {
             itemRegistry.registerItem(new Coin(type));
         }
+
+        statsService = new StatsService(this, itemRegistry);
+
+
+        var book = new QuickRecipeBook();
+        new QuickRecipesListener(this, book, itemRegistry);
+
+        book.add(
+                QuickRecipe.shaped("emerald_sword", " E ", " E ",  " S ")
+                        .ingredient('E', Material.EMERALD, 32)
+                        .ingredient('S', Material.STICK)
+                        .result(() -> itemRegistry.byId("emerald_sword").newItemStack())
+                        .onCraft((player, item) -> {
+                            getLogger().info(player.getName() + " crafted emerald sword");
+                        })
+                        .build()
+        );
+
+
+        book.add(
+                QuickRecipe.shaped("nethemerald_sword", "NNN", "NCN",  "NNN")
+                        .ingredient('N', Material.NETHERITE_INGOT, 40)
+                        .ingredient('C', QuickRecipe.Ingredient.custom("emerald_sword"))
+                        .result(() -> itemRegistry.byId("nethemerald_sword").newItemStack())
+                        .onCraft((player, item) -> {
+                            getLogger().info(player.getName() + " crafted nethemerald sword");
+                        })
+                        .build()
+        );
+
 
 
 
@@ -131,15 +166,6 @@ public class OneBlockPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new PlayerJoinQuitListener(this), this);
         getServer().getPluginManager().registerEvents(new Fix_weird_commands(this), this);
         getServer().getPluginManager().registerEvents(new ChallengesEventListener(this), this);
-
-        islandsWorld.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false);
-        islandsWorld.setGameRule(GameRule.DO_MOB_SPAWNING, false);
-        islandsWorld.setGameRule(GameRule.DO_WEATHER_CYCLE, false);
-        islandsWorld.setGameRule(GameRule.DO_TRADER_SPAWNING, false);
-        islandsWorld.setGameRule(GameRule.ANNOUNCE_ADVANCEMENTS, false);
-        islandsWorld.setGameRule(GameRule.KEEP_INVENTORY, true);
-        islandsWorld.setGameRule(GameRule.TNT_EXPLODES, false);
-        islandsWorld.setGameRule(GameRule.MOB_GRIEFING, false);
 
         successfullyEnabled = true;
     }
@@ -261,6 +287,7 @@ public class OneBlockPlugin extends JavaPlugin {
 
         manager.registerCommand(new MiniCommands(this));
         manager.registerCommand(new IslandCommands(this));
+        manager.registerCommand(new AllCommands(this));
     }
 
     private void loadTranslations() {
@@ -304,18 +331,21 @@ public class OneBlockPlugin extends JavaPlugin {
         try {
             FileUtils.deleteDirectory(hubFolder);
             Zip.unzip(
-                    new File(worldFolder, "OneBlockWorld.zip").toPath(),
+                    new File(worldFolder, "OneBlockHub.zip").toPath(),
                     hubFolder.toPath()
             );
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        World hubWorld = this.getServer().createWorld(new WorldCreator(new NamespacedKey("floxy", "hub")));
+        var hubWC = new WorldCreator(new NamespacedKey("floxy", "hub"));
+        hubWC.generator(new VoidChunkGenerator());
+        hubWorld = this.getServer().createWorld(hubWC);
         if (hubWorld == null) {
             logger.severe("Failed to create hub world!");
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
+        hubWorld.setSpawnLocation(new Location(hubWorld, -4.5, 122, -9.5));
         hubWorld.setGameRule(GameRule.ANNOUNCE_ADVANCEMENTS, false);
         hubWorld.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false);
         hubWorld.setGameRule(GameRule.DO_MOB_SPAWNING, false);
@@ -324,9 +354,11 @@ public class OneBlockPlugin extends JavaPlugin {
         hubWorld.setGameRule(GameRule.TNT_EXPLODES, false);
         hubWorld.setGameRule(GameRule.MOB_GRIEFING, false);
         hubWorld.setGameRule(GameRule.DO_TRADER_SPAWNING, false);
+
+        new HubProtector(this, hubWorld);
     }
 
-    public User getUser(Player player) {
+    public @NotNull User getUser(Player player) {
         return userManager.getUser(player.getUniqueId());
     }
 

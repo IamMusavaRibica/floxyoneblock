@@ -14,6 +14,7 @@ import com.sk89q.minecraft.util.commands.Command;
 import dev.ribica.oneblockplugin.items.RawItem;
 import dev.ribica.oneblockplugin.playerdata.User;
 import dev.ribica.oneblockplugin.skills.Skill;
+import dev.ribica.oneblockplugin.stats.Stat;
 import dev.ribica.oneblockplugin.util.McTextUtils;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.PotionContents;
@@ -76,6 +77,13 @@ import static net.kyori.adventure.text.Component.text;
 public class MiniCommands extends BaseCommand {
     private final OneBlockPlugin plugin;
 
+    @CommandAlias("getstats")
+    public void getstat(Player player) {
+        var map = plugin.getStatsService().getTotals(player);
+        for (Stat stat : Stat.values()) {
+            player.sendMessage(stat.name() + ": " + map.get(stat));
+        }
+    }
 
     @CommandAlias("getlocale")
     public void tgrg(Player player) {

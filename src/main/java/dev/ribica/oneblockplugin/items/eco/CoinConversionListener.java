@@ -167,7 +167,7 @@ public class CoinConversionListener implements Listener {
         } while (madeConversion);
 
         long end = System.currentTimeMillis();
-        plugin.getLogger().info("Processed coins for player " + player.getName() + " in " + (end - start) + " ms");
+//        plugin.getLogger().info("Processed coins for player " + player.getName() + " in " + (end - start) + " ms");
     }
 
     @Getter @Setter

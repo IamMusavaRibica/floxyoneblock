@@ -4,6 +4,7 @@ import dev.ribica.oneblockplugin.OneBlockPlugin;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -20,7 +21,7 @@ public class UserManager {
         userMap.put(user.getUuid(), user);
     }
 
-    public User getUser(UUID uuid) {
+    public @NotNull User getUser(UUID uuid) {
         User user = userMap.get(uuid);
         if (user != null)
             return user;

@@ -59,13 +59,14 @@ public class MongoStorageProvider {
 
         // Read connection string from config, fallback to default
         String connectionString = plugin.getConfig().getString("mongodb-connection-string", "mongodb://localhost:27017");
+        String databaseName = plugin.getConfig().getString("mongodb-database", "oneblock");
         logger.info("Connecting to MongoDB with connection string: " + connectionString);
         MongoClientSettings settings = MongoClientSettings.builder()
                 .applyConnectionString(new ConnectionString(connectionString))
                 .uuidRepresentation(UuidRepresentation.STANDARD)
                 .build();
         this.mongoClient = MongoClients.create(settings);
-        this.database = mongoClient.getDatabase("oneblock");
+        this.database = mongoClient.getDatabase(databaseName);
         this.playersCollection = database.getCollection("players");
 
         this.islandDataCollection = database.getCollection("island_data");

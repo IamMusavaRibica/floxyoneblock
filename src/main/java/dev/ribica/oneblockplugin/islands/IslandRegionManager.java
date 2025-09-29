@@ -27,12 +27,10 @@ import java.util.logging.Logger;
 public class IslandRegionManager {
     private final Logger logger = Logger.getLogger("IslandRegionManager");
     private final OneBlockPlugin plugin;
-    private final World legacyWorld; // Keep for legacy operations only
     private final RegionContainer container;
 
-    public IslandRegionManager(OneBlockPlugin plugin, World legacyWorld) {
+    public IslandRegionManager(OneBlockPlugin plugin) {
         this.plugin = plugin;
-        this.legacyWorld = legacyWorld;
         this.container = WorldGuard.getInstance().getPlatform().getRegionContainer();
     }
 

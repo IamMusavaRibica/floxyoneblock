@@ -10,7 +10,7 @@ import org.joml.Matrix4f;
 import java.util.HashMap;
 import java.util.Map;
 
-/* Hvala ti, ribice! */
+
 @RequiredArgsConstructor
 public class KlyBeaconRenderer {
     private final JavaPlugin plugin;

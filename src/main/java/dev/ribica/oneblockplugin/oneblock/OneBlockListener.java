@@ -51,10 +51,11 @@ public class OneBlockListener implements Listener {
                 plugin.getLogger().warning(player.getName() + " broke a block on island " + island.getUuid() +
                         " but their current island is " + current.getUuid() + "!");
                 player.sendMessage(Component.text("Prebaci se na ovo ostrvo da kopaš tu! OVO NE SME NORMALNO DA SE DOGODI", TextColor.color(0xff7f00)));
-            } else {
+                event.setCancelled(true);
+            } else if (player.getWorld() != plugin.getHubWorld()) {
                 plugin.getLogger().warning(player.getName() + " pokusa da unistava blokove na necijem ostrvu, ali nije clan tog ostrva");
+                event.setCancelled(true);
             }
-            event.setCancelled(true);
             return;
         }
 

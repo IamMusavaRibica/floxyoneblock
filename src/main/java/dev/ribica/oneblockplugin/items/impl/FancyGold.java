@@ -1,6 +1,10 @@
 package dev.ribica.oneblockplugin.items.impl;
 
 import dev.ribica.oneblockplugin.items.RawItem;
+import dev.ribica.oneblockplugin.stats.Stat;
+import dev.ribica.oneblockplugin.stats.calculation.InventorySlot;
+import dev.ribica.oneblockplugin.stats.calculation.ItemStatProvider;
+import dev.ribica.oneblockplugin.stats.calculation.StatAccumulator;
 import lombok.Getter;
 import net.kyori.adventure.key.Key;
 import org.bukkit.Location;
@@ -10,7 +14,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 
-public class FancyGold extends RawItem {
+public class FancyGold extends RawItem implements ItemStatProvider {
     private final @Getter int maxStackSize = 7;
 
 
@@ -51,6 +55,15 @@ public class FancyGold extends RawItem {
                         5, 0.1, 0.1, 0.1, 0
                 );
             }
+        }
+    }
+
+    @Override
+    public void contribute(Player player, ItemStack itemStack, InventorySlot slot, StatAccumulator accumulator) {
+        accumulator.add(Stat.STRENGTH, 15);
+
+        if (slot == InventorySlot.MAIN_HAND) {
+            accumulator.add(Stat.DEFENSE, 20);
         }
     }
 }
