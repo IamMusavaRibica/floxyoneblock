@@ -73,6 +73,7 @@ import static net.kyori.adventure.text.Component.text;
 
 @RequiredArgsConstructor
 //@CommandAlias("test")
+@CommandPermission("op")
 @SuppressWarnings("unused")
 public class MiniCommands extends BaseCommand {
     private final OneBlockPlugin plugin;

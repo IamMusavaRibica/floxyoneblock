@@ -69,6 +69,7 @@ public class IslandRegionManager {
             var boundary = island.getBoundary();
             var region = new ProtectedCuboidRegion(regionId, true, boundary.getMinimumPoint(), boundary.getMaximumPoint());
             configureRegion(region, island);
+            configureRegionMembers(region, island);
 
             // Add the spawn-protection region (3 blocks above the one block)
             Location origin = island.getSourceBlockLocation();
@@ -82,6 +83,7 @@ public class IslandRegionManager {
 
             // Add the source block protection region (just the one block source)
             var sourceRegion = new ProtectedCuboidRegion(sourceRegionId, true, originBV, originBV);
+            configureRegionMembers(sourceRegion, island);
             sourceRegion.setPriority(region.getPriority() + 20);
             sourceRegion.setFlag(Flags.BUILD, StateFlag.State.DENY);
             sourceRegion.setFlag(Flags.BUILD.getRegionGroupFlag(), RegionGroup.ALL);
@@ -135,12 +137,7 @@ public class IslandRegionManager {
         }
     }
 
-    /**
-     * Configure a region with the appropriate permissions for an island
-     * @param region The WorldGuard region to configure
-     * @param island The island to configure permissions for
-     */
-    private void configureRegion(ProtectedRegion region, Island island) {
+    public void configureRegionMembers(ProtectedRegion region, Island island) {
         // Set up owners domain (island owner)
         DefaultDomain owners = new DefaultDomain();
         owners.addPlayer(island.getOwner().getId().getUuid());
@@ -150,7 +147,14 @@ public class IslandRegionManager {
         DefaultDomain members = new DefaultDomain();
         island.members.getCurrentMembers().forEach(im -> members.addPlayer(im.getId().getUuid()));
         region.setMembers(members);
+    }
 
+    /**
+     * Configure a region with the appropriate permissions for an island
+     * @param region The WorldGuard region to configure
+     * @param island The island to configure permissions for
+     */
+    private void configureRegion(ProtectedRegion region, Island island) {
         // Set default flags for non-members (guests)
 
         // Allow entry/exit for everyone

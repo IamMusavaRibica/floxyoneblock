@@ -1,7 +1,7 @@
 My implementation of the Minecraft OneBlock minigame, as a plugin for Paper servers
 
 ## Demo available at 217.182.197.103:25589, versions 1.21.7/8
-`/is advancestage` `/optools` `/hub` `/coopadd` `/coopkick`
+`/is advancestage` **`/optools`** `/hub` `/coopadd` `/coopkick` `/giveskillxp <mining|farming|fishing> amount`
 
 ## Installation instructions (somewhat complicated)
 - requires MongoDB

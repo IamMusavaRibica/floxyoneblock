@@ -51,7 +51,7 @@ public class QuestPartShowInfoMessage extends QuestPart {
         // of the message are sent to the player and they may click each one of them.
         this.BUTTON_OK = Component.text(" ".repeat(50))
                 .append(
-                        Component.text("[DALJE]", TextColor.color(0x00ff00), TextDecoration.BOLD)
+                        Component.text("[CONTINUE]", TextColor.color(0x00ff00), TextDecoration.BOLD)
                                 .clickEvent(ClickEvent.callback(this::callback))
                 )
                 .appendNewline();
